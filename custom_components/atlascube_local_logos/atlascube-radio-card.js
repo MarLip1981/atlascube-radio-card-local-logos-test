@@ -1166,7 +1166,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         }
         .logo-diagnostics.open { display:block; }
         .logo-diagnostic-item { cursor:pointer; }
-        .station-logo { cursor:pointer; }
+        .station-logo, .station-identity { cursor:pointer; }
         .logo-diagnostic-item.selected { outline:2px solid var(--primary-color, #03a9f4); outline-offset:2px; border-radius:8px; }
         .logo-diagnostics-heading {
           margin:0 0 7px; font-size:10px; font-weight:800; opacity:.78;
@@ -1412,7 +1412,7 @@ class AtlasCubeRadioCard extends HTMLElement {
       </div>
     `;
 
-    this.shadowRoot.querySelector(".station-logo")?.addEventListener("click", event => {
+    this.shadowRoot.querySelector(".station-identity")?.addEventListener("click", event => {
       event.stopPropagation();
       this._logoPickerOpen = !this._logoPickerOpen;
       this._render();
