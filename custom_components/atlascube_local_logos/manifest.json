@@ -1,10 +1,12 @@
 {
   "domain": "atlascube_local_logos",
   "name": "AtlasCube Local Logos",
-  "codeowners": ["MarLip1981"],
+  "codeowners": [
+    "MarLip1981"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/MarLip1981/atlascube-radio-card-local-logos-test",
   "iot_class": "local_push",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "requirements": []
 }
