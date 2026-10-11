@@ -8,13 +8,14 @@ from urllib.parse import urlparse
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_GET, WS_LIST, WS_SAVE
 
 _LOGGER = logging.getLogger(__name__)
-_EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif"}
+_EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif", "image/x-icon": ".ico", "image/vnd.microsoft.icon": ".ico", "image/avif": ".avif"}
 
 
 def _safe_key(value: str) -> str:
@@ -48,6 +49,12 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     folder = Path(hass.config.path("www", LOGO_DIR))
     folder.mkdir(parents=True, exist_ok=True)
     hass.data.setdefault(DOMAIN, {})["folder"] = folder
+    # The integration itself serves the Lovelace card file, so HACS only needs
+    # to install this single integration repository.
+    card_path = Path(__file__).parent / "atlascube-radio-card.js"
+    await hass.http.async_register_static_paths([
+        StaticPathConfig("/atlascube-local-logos/atlascube-radio-card.js", str(card_path), cache_headers=False)
+    ])
 
     @websocket_api.websocket_command({vol.Required("type"): WS_GET, vol.Required("station_key"): str})
     @websocket_api.async_response
