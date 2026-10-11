@@ -1185,7 +1185,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         }
 
         .card.has-art { min-height:500px; }
-        .card.playing-noart { background: radial-gradient(ellipse at 50% 38%, rgba(35,150,255,.34) 0%, rgba(20,130,245,.22) 36%, rgba(20,105,210,.10) 68%, rgba(0,0,0,.08) 100%); border-color:rgba(65,165,255,.48); box-shadow:inset 0 0 34px rgba(35,145,255,.10), 0 0 32px rgba(33,150,243,.16), 0 4px 18px rgba(0,0,0,.25); }
+        .card.playing-noart { background: radial-gradient(ellipse at 50% 40%, rgba(0,174,255,.46) 0%, rgba(0,145,255,.32) 34%, rgba(0,105,230,.20) 62%, rgba(0,35,95,.16) 100%); border-color:rgba(65,185,255,.58); box-shadow:inset 0 0 42px rgba(0,160,255,.16), 0 0 36px rgba(0,145,255,.20), 0 4px 18px rgba(0,0,0,.25); }
         .card.offline { background:rgba(25,25,25,.45); border-color:rgba(244,67,54,.18); }
         .card.idle-ready {
           background: radial-gradient(ellipse at 50% 45%, rgba(33,150,243,.12) 0%, rgba(33,150,243,.055) 48%, rgba(0,0,0,.12) 100%);
@@ -1283,14 +1283,14 @@ class AtlasCubeRadioCard extends HTMLElement {
         .offline-title { font-size:17px; font-weight:700; }
         .offline-text { font-size:13px; opacity:.65; margin-top:4px; }
 
-        .topbar { width:100%; min-height:32px; display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; box-sizing:border-box; }
+        .topbar { width:100%; min-height:90px; display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:6px; box-sizing:border-box; }
         .brand { display:flex; align-items:center; justify-content:flex-start; gap:7px; margin:0; font-size:16px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; opacity:.94; flex:0 1 auto; min-width:0; }
         .brand-icon { font-size:22px; line-height:1; }
         .brand-cube { opacity:.58; }
         .brand.web { cursor:pointer; }
         .brand.web:active { transform:scale(.995); }
-        .station-logo-slot { position:relative; flex:0 0 auto; max-width:58%; height:76px; padding:8px 3px 13px; box-sizing:border-box; display:flex; align-items:center; justify-content:flex-end; overflow:visible; }
-        .station-logo { position:relative; z-index:1; display:block; max-width:100%; max-height:52px; width:auto; height:auto; object-fit:contain; filter:drop-shadow(0 0 4px rgba(250,252,255,.98)) drop-shadow(0 0 11px rgba(210,226,250,.82)) drop-shadow(0 0 18px rgba(190,210,240,.36)) drop-shadow(0 2px 5px rgba(0,0,0,.28)); }
+        .station-logo-slot { position:relative; flex:0 0 auto; max-width:58%; min-height:90px; height:90px; padding:6px 3px 17px; box-sizing:border-box; display:flex; align-items:center; justify-content:flex-end; overflow:visible; }
+        .station-logo { position:relative; z-index:1; display:block; flex:0 1 auto; max-width:100%; max-height:60px; width:auto; height:auto; object-fit:contain; overflow:visible; filter:drop-shadow(0 0 4px rgba(250,252,255,.98)) drop-shadow(0 0 11px rgba(210,226,250,.82)) drop-shadow(0 0 18px rgba(190,210,240,.36)) drop-shadow(0 2px 5px rgba(0,0,0,.28)); }
         .station-logo-origin { position:absolute; right:0; bottom:0; z-index:2; padding:2px 4px; border:1px solid rgba(255,255,255,.18); border-radius:5px; background:rgba(8,14,24,.82); color:#eaf3ff; font-size:8px; line-height:1.15; font-weight:800; letter-spacing:.035em; white-space:nowrap; box-shadow:0 1px 4px rgba(0,0,0,.24); pointer-events:none; }
         .station-logo-origin.disk { border-color:rgba(76,175,80,.65); color:#a5f0a9; }
         .station-logo-origin.online { border-color:rgba(33,150,243,.65); color:#a8dcff; }
@@ -1305,6 +1305,9 @@ class AtlasCubeRadioCard extends HTMLElement {
           object-fit: cover;
           box-shadow: 0 8px 30px rgba(0,0,0,.45);
           background: rgba(0,0,0,.25);
+        }
+        .cover {
+          filter: drop-shadow(0 0 5px rgba(175,215,255,.34)) drop-shadow(0 9px 16px rgba(0,0,0,.42));
         }
 
         .no-cover {
@@ -1418,28 +1421,39 @@ class AtlasCubeRadioCard extends HTMLElement {
 
         .volume {
           width: min(360px, 90%);
-          margin-top: 14px;
-          display: flex;
+          margin: 14px auto 0;
+          display: grid;
+          grid-template-columns: 38px minmax(0, 1fr) 38px;
           align-items: center;
-          gap: 10px;
+          column-gap: 10px;
+          box-sizing: border-box;
         }
 
         .volume ha-icon {
           --mdc-icon-size: 22px;
+          justify-self: center;
           opacity: .75;
+          transition: color .18s ease, opacity .18s ease, filter .18s ease;
+        }
+        .volume.muted ha-icon {
+          color: #ff3b4f;
+          opacity: 1;
+          filter: drop-shadow(0 0 4px rgba(255,40,60,.95)) drop-shadow(0 0 10px rgba(255,30,50,.72));
         }
 
         .volume input {
-          flex: 1;
+          width: 100%;
           min-width: 0;
+          margin: 0;
           accent-color: #2196f3;
         }
 
         .volume-value {
-          min-width: 38px;
-          text-align: right;
+          width: 38px;
+          text-align: center;
           font-size: 12px;
           opacity: .65;
+          font-variant-numeric: tabular-nums;
         }
 
         .source { width:min(360px,90%); margin-top:12px; display:flex; align-items:center; gap:10px; }
@@ -1451,7 +1465,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         ${background}
 
         <div class="content">
-          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.6</div>
+          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.9</div>
           <div class="logo-diagnostics ${this._logoPickerOpen ? "open" : ""}">
             <div class="logo-diagnostics-heading">PORÓWNANIE WYNIKÓW — STAŁE OZNACZENIA METOD</div><div class="logo-diagnostics-source">Kliknij wynik, aby tymczasowo sprawdzić go jako logo karty.</div>
             <div class="logo-diagnostics-row">
@@ -1483,7 +1497,7 @@ class AtlasCubeRadioCard extends HTMLElement {
             </button>
           </div>` : ""}
 
-          ${online && this._config.show_volume !== false ? `<div class="volume">
+          ${online && this._config.show_volume !== false ? `<div class="volume ${volumeValue === 0 ? "muted" : ""}">
             <ha-icon icon="mdi:${volumeValue === 0 ? "volume-mute" : volumeValue < 50 ? "volume-medium" : "volume-high"}"></ha-icon>
             <input id="volume" type="range" min="0" max="100" step="1" value="${volumeValue}" aria-label="Głośność">
             <div class="volume-value">${Math.round(volumeValue)}%</div>
@@ -1528,7 +1542,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         // ani bezpośrednio, ani przez pośredniki. Jeśli proxy zadziałało,
         // można użyć jego bieżącego adresu jako awaryjnego źródła zapisu.
         if (!candidate?.logo || candidateImage?.classList.contains("failed")) return;
-        const displayedLogo = candidateImage?.currentSrc || candidate.logo;
+        const displayedLogo = candidateImage?.src || candidate.logo
         const selected = {
           logo: displayedLogo,
           originalLogo: candidate.originalLogo || candidate.logo,
