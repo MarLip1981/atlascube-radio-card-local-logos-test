@@ -1,4 +1,4 @@
-# AtlasCube Radio Card — TEST LOKALNY DYSK LOGO v0.1.9
+# AtlasCube Radio Card — TEST LOKALNY DYSK LOGO v0.1.10
 
 Niezależna wersja testowa. Nie zmienia głównej karty AtlasCube ani wcześniejszej karty testowej.
 
