@@ -8,11 +8,13 @@ Wersja testowa niezależna od głównej karty AtlasCube. Projekt zawiera kartę 
 2. Pobierz repozytorium.
 3. Uruchom ponownie Home Assistant.
 4. Wejdź w Ustawienia → Urządzenia i usługi → Dodaj integrację i wyszukaj AtlasCube Local Logos.
-5. Dodaj zasób karty Lovelace wskazujący na /hacsfiles/atlascube-radio-card-local-logos-test/atlascube-radio-card.js (jeżeli HACS nie doda zasobu automatycznie) i odśwież przeglądarkę.
+5. Dodaj zasób karty Lovelace wskazujący na /atlascube-local-logos/atlascube-radio-card.js i odśwież przeglądarkę.
 
 > To repozytorium jest w fazie testów. HACS pobiera kod, ale Home Assistant wymaga dodania integracji z poziomu UI; instalacja HACS nie uruchamia automatycznie integracji.
 
 ## Biblioteka
+
+Kod karty jest dostarczany przez samą integrację pod adresem /atlascube-local-logos/atlascube-radio-card.js. Zasób Lovelace trzeba dodać raz w panelu zasobów.
 
 Pliki logo są przechowywane w:
  /config/www/atlascube-radio-station-logos/
