@@ -20,7 +20,7 @@ from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST
 _LOGGER = logging.getLogger(__name__)
 
 _CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
-_CARD_VERSION = "0.1.11"
+_CARD_VERSION = "0.1.12"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 
@@ -135,7 +135,19 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             key = _safe_key(msg["station_key"])
             folder = hass.data[DOMAIN]["folder"]
             path = next((folder / f"{key}{ext}" for ext in _EXTENSIONS.values() if (folder / f"{key}{ext}").is_file()), None)
-            connection.send_result(msg["id"], {"logo": f"/local/{LOGO_DIR}/{path.name}" if path else None})
+            metadata_path = folder / f"{key}.json"
+            metadata = {}
+            if metadata_path.is_file():
+                try:
+                    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    metadata = {}
+            connection.send_result(msg["id"], {
+                "logo": f"/local/{LOGO_DIR}/{path.name}" if path else None,
+                "selection_mode": metadata.get("selection_mode", "legacy"),
+                "algorithm_version": metadata.get("algorithm_version"),
+                "source_url": metadata.get("source_url"),
+            })
         except (ValueError, OSError) as err:
             connection.send_error(msg["id"], "invalid_station", str(err))
 
@@ -172,12 +184,16 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         vol.Required("station_key"): str,
         vol.Required("station"): str,
         vol.Required("url"): str,
+        vol.Optional("selection_mode", default="automatic"): str,
     })
     @websocket_api.async_response
     async def ws_save(hass, connection, msg):
         try:
             key = _safe_key(msg["station_key"])
             url = _public_url(msg["url"])
+            selection_mode = msg.get("selection_mode", "automatic")
+            if selection_mode not in {"automatic", "manual"}:
+                raise ValueError("Nieprawidłowy tryb wyboru logo")
             session = async_get_clientsession(hass)
             # Walidujemy każdy skok przekierowania osobno, zanim wykonamy następne żądanie.
             current_url = url
@@ -219,8 +235,17 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             metadata.write_text(json.dumps({
                 "source_url": url,
                 "content_type": content_type,
+                "selection_mode": selection_mode,
+                "algorithm_version": "0.1.12",
             }, ensure_ascii=False), encoding="utf-8")
-            connection.send_result(msg["id"], {"logo": f"/local/{LOGO_DIR}/{target.name}", "station": msg["station"], "bytes": len(body), "source_url": url})
+            connection.send_result(msg["id"], {
+                "logo": f"/local/{LOGO_DIR}/{target.name}",
+                "station": msg["station"],
+                "bytes": len(body),
+                "source_url": url,
+                "selection_mode": selection_mode,
+                "algorithm_version": "0.1.12",
+            })
         except Exception as err:
             _LOGGER.warning("Nie udało się zapisać logo stacji: %s", err)
             connection.send_error(msg["id"], "logo_save_failed", str(err))
@@ -273,9 +298,15 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 if old.exists() and old != target:
                     old.unlink()
             target.write_bytes(body)
+            metadata["source_url"] = url
+            metadata["content_type"] = content_type
+            metadata["selection_mode"] = metadata.get("selection_mode", "legacy")
+            metadata["algorithm_version"] = "0.1.12"
+            metadata_path.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
             connection.send_result(msg["id"], {
                 "logo": f"/local/{LOGO_DIR}/{target.name}",
                 "source_url": url,
+                "selection_mode": metadata["selection_mode"],
                 "bytes": len(body),
                 "refreshed": True,
             })
