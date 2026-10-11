@@ -1,4 +1,4 @@
-# AtlasCube Radio Card — TEST LOKALNY DYSK LOGO v0.1.5
+# AtlasCube Radio Card — TEST LOKALNY DYSK LOGO v0.1.6
 
 Niezależna wersja testowa. Nie zmienia głównej karty AtlasCube ani wcześniejszej karty testowej.
 
@@ -8,7 +8,7 @@ Niezależna wersja testowa. Nie zmienia głównej karty AtlasCube ani wcześniej
 2. Uruchom ponownie Home Assistant.
 3. Dodaj integrację **AtlasCube Local Logos** (jeśli już jest dodana, nie dodawaj jej ponownie).
 4. Odśwież aplikację Home Assistant i otwórz edytor pulpitu.
-5. Wyszukaj kartę **AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.5**.
+5. Wyszukaj kartę **AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.6**.
 
 **Nie dodawaj ręcznie zasobu w Ustawienia → Pulpity → Zasoby.** Integracja sama udostępnia plik JS i rejestruje go. W trybie Lovelace storage dodaje moduł do zasobów Lovelace; w trybie YAML korzysta z mechanizmu dodatkowego modułu JavaScript Home Assistanta. Rozpoznawanie trybu zasobów używa właściwości `resource_mode`.
 
