@@ -19,7 +19,7 @@ from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST
 _LOGGER = logging.getLogger(__name__)
 
 _CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
-_CARD_VERSION = "0.1.9"
+_CARD_VERSION = "0.1.10"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 
