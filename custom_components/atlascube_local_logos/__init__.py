@@ -30,10 +30,11 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
         await hass.http.async_register_static_paths([
             StaticPathConfig(_CARD_URL, str(card_path), cache_headers=False)
         ])
-    except RuntimeError as err:
-        # A duplicate route can occur after an integration reload; don't hide
-        # unrelated registration errors.
-        if "already registered" not in str(err).lower() and "duplicate" not in str(err).lower():
+    except Exception as err:  # noqa: BLE001
+        # A duplicate route can occur after an integration reload. Continue only
+        # for that known case; other failures should be visible in the HA log.
+        message = str(err).lower()
+        if "already registered" not in message and "duplicate" not in message:
             _LOGGER.warning("Nie udało się zarejestrować pliku karty AtlasCube: %s", err)
             return
 
