@@ -1,36 +1,35 @@
-# AtlasCube Radio Card — TEST LOKALNY DYSK LOGO v0.1.1
+# AtlasCube Radio Card — TEST LOKALNY DYSK LOGO v0.1.2
 
-Wersja testowa niezależna od głównej karty AtlasCube. Wersja v0.1.1 ma odrębny typ Lovelace `custom:atlascube-radio-card-local-disk-test` i czerwony pasek TEST na karcie. Projekt zawiera kartę Lovelace i integrację Home Assistant, która przechowuje pobrane logotypy na dysku serwera.
+To jest niezależna wersja testowa. Nie zmienia głównej karty AtlasCube ani wcześniejszej karty testowej z wyszukiwaniem logo.
 
-## Instalacja testowa
+## Instalacja — bez ręcznego dodawania zasobu JS
 
-1. Dodaj repozytorium w HACS jako Custom repository typu Integration.
-2. Pobierz repozytorium.
+1. W HACS dodaj repozytorium `MarLip1981/atlascube-radio-card-local-logos-test` jako **Custom repository → Integration**.
+2. Pobierz/zaaktualizuj integrację.
 3. Uruchom ponownie Home Assistant.
-4. Wejdź w Ustawienia → Urządzenia i usługi → Dodaj integrację i wyszukaj AtlasCube Local Logos.
-5. W Lovelace → Zasoby dodaj dokładnie `/atlascube-local-logos/atlascube-radio-card.js?v=0.1.1` jako **Moduł JavaScript**. Jeśli istnieje stary zasób prowadzący do poprzedniej karty testowej, nie używaj go do tej próby.
-6. Odśwież aplikację/przeglądarkę Home Assistant. Przy dodawaniu ręcznym wybierz typ `custom:atlascube-radio-card-local-disk-test` — nie poprzedni `custom:atlascube-radio-card-local-logos-test`.
+4. Wejdź w **Ustawienia → Urządzenia i usługi → Dodaj integrację** i dodaj **AtlasCube Local Logos**.
+5. Odśwież aplikację Home Assistant (jeśli karta nie pojawi się od razu, zamknij i otwórz aplikację ponownie).
+6. W edytorze pulpitu dodaj kartę **AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.2**.
 
-> To repozytorium jest w fazie testów. HACS pobiera kod, ale Home Assistant wymaga dodania integracji z poziomu UI; instalacja HACS nie uruchamia automatycznie integracji.
+**Nie dodawaj ręcznie zasobu w Ustawienia → Pulpity → Zasoby.** Integracja sama udostępnia plik JS i rejestruje go w zasobach Lovelace. W logu HA powinien pojawić się wpis o automatycznej rejestracji.
 
-## Biblioteka
+Dodanie samej karty do wybranego pulpitu pozostaje osobnym krokiem wykonywanym w interfejsie Home Assistanta.
 
-Kod karty jest dostarczany przez samą integrację pod adresem /atlascube-local-logos/atlascube-radio-card.js. Zasób Lovelace trzeba dodać raz w panelu zasobów.
+## Biblioteka logo
 
-Pliki logo są przechowywane w:
- /config/www/atlascube-radio-station-logos/
+Pliki logo są przechowywane na serwerze HA w:
 
-Są serwowane przez HA pod adresem:
- /local/atlascube-radio-station-logos/<plik>
+`/config/www/atlascube-radio-station-logos/`
 
-Najpierw sprawdzana jest lokalna biblioteka. Gdy pliku nie ma, karta wykonuje wyszukiwanie sieciowe. Po poprawnym znalezieniu i zapisaniu logo kolejne odczyty korzystają z dysku. Ręczny wybór ma zastępować zapisane logo stacji.
+i udostępniane pod adresem:
 
-## Ważne rozróżnienie testowe
+`/local/atlascube-radio-station-logos/<plik>`
 
-- Typ nowej karty: `custom:atlascube-radio-card-local-disk-test`.
-- Zasób JavaScript: `/atlascube-local-logos/atlascube-radio-card.js?v=0.1.1`.
-- Jeśli w selektorze widać tylko stary typ karty, sprawdź zasób i odśwież frontend; nie traktuj starej karty jako testu integracji lokalnej.
+Karta najpierw sprawdza lokalną bibliotekę. Jeśli logo nie istnieje, wyszukuje je online i próbuje zapisać wybrane logo na dysku. Ręczny wybór logo zapisuje wybraną wersję lokalnie; przywrócenie automatycznego wyboru usuwa lokalne nadpisanie i uruchamia ponowne wyszukiwanie.
 
-## Status
+## Ważne w pierwszym teście
 
-Test integracji, zapisu plików, odczytu lokalnego, wyszukiwania, ręcznego wyboru i ponownego uruchomienia HA jest wymagany przed uznaniem wersji za gotową.
+- Typ karty: `custom:atlascube-radio-card-local-disk-test`.
+- Zasób JS rejestrowany automatycznie: `/atlascube-local-logos/atlascube-radio-card.js?v=0.1.2`.
+- Pliki logo pozostają na dysku także po usunięciu i ponownym dodaniu integracji.
+- To wersja testowa; trzeba potwierdzić automatyczną rejestrację, wybór karty, pobieranie i zapis logo, ponowne użycie lokalnego pliku oraz zachowanie po restarcie HA.
