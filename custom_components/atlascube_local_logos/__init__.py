@@ -12,7 +12,7 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_GET, WS_LIST, WS_SAVE
+from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST, WS_SAVE
 
 _LOGGER = logging.getLogger(__name__)
 _EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif", "image/x-icon": ".ico", "image/vnd.microsoft.icon": ".ico", "image/avif": ".avif"}
@@ -75,6 +75,22 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
         logos = [{"key": p.stem, "logo": f"/local/{LOGO_DIR}/{p.name}"} for p in sorted(folder.iterdir()) if p.is_file() and p.suffix.lower() in _EXTENSIONS.values()]
         connection.send_result(msg["id"], {"logos": logos})
 
+    @websocket_api.websocket_command({vol.Required("type"): WS_DELETE, vol.Required("station_key"): str})
+    @websocket_api.async_response
+    async def ws_delete(hass, connection, msg):
+        try:
+            key = _safe_key(msg["station_key"])
+            folder = hass.data[DOMAIN]["folder"]
+            removed = False
+            for ext in _EXTENSIONS.values():
+                path = folder / f"{key}{ext}"
+                if path.is_file():
+                    path.unlink()
+                    removed = True
+            connection.send_result(msg["id"], {"removed": removed})
+        except (ValueError, OSError) as err:
+            connection.send_error(msg["id"], "logo_delete_failed", str(err))
+
     @websocket_api.websocket_command({
         vol.Required("type"): WS_SAVE,
         vol.Required("station_key"): str,
@@ -130,6 +146,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     websocket_api.async_register_command(hass, ws_get)
     websocket_api.async_register_command(hass, ws_list)
     websocket_api.async_register_command(hass, ws_save)
+    websocket_api.async_register_command(hass, ws_delete)
     return True
 
 
