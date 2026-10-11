@@ -4,7 +4,7 @@ import ipaddress
 import logging
 import re
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
@@ -87,18 +87,32 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             key = _safe_key(msg["station_key"])
             url = _public_url(msg["url"])
             session = async_get_clientsession(hass)
-            async with session.get(url, allow_redirects=True, timeout=15) as response:
-                if response.status != 200:
-                    raise ValueError(f"Źródło logo zwróciło HTTP {response.status}")
-                _public_url(str(response.url))
-                content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
-                if content_type not in _EXTENSIONS:
-                    raise ValueError("Źródło nie zwróciło obsługiwanego obrazu PNG/JPEG/WebP/GIF")
-                if response.content_length is not None and response.content_length > MAX_IMAGE_BYTES:
-                    raise ValueError("Logo przekracza limit 2 MB")
-                body = await response.content.read(MAX_IMAGE_BYTES + 1)
-                if not body or len(body) > MAX_IMAGE_BYTES:
-                    raise ValueError("Pusty obraz lub przekroczony limit 2 MB")
+            # Walidujemy każdy skok przekierowania osobno, zanim wykonamy następne żądanie.
+            current_url = url
+            body = b""
+            content_type = ""
+            for redirect_count in range(4):
+                current_url = _public_url(current_url)
+                async with session.get(current_url, allow_redirects=False, timeout=15) as response:
+                    if response.status in (301, 302, 303, 307, 308):
+                        location = response.headers.get("Location")
+                        if not location or redirect_count == 3:
+                            raise ValueError("Za dużo lub nieprawidłowe przekierowania źródła logo")
+                        current_url = urljoin(current_url, location)
+                        continue
+                    if response.status != 200:
+                        raise ValueError(f"Źródło logo zwróciło HTTP {response.status}")
+                    content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+                    if content_type not in _EXTENSIONS:
+                        raise ValueError("Źródło nie zwróciło obsługiwanego obrazu PNG/JPEG/WebP/GIF/ICO/AVIF")
+                    if response.content_length is not None and response.content_length > MAX_IMAGE_BYTES:
+                        raise ValueError("Logo przekracza limit 2 MB")
+                    body = await response.content.read(MAX_IMAGE_BYTES + 1)
+                    if not body or len(body) > MAX_IMAGE_BYTES:
+                        raise ValueError("Pusty obraz lub przekroczony limit 2 MB")
+                    break
+            else:
+                raise ValueError("Nie udało się pobrać logo")
             folder = hass.data[DOMAIN]["folder"]
             folder.mkdir(parents=True, exist_ok=True)
             ext = _EXTENSIONS[content_type]
