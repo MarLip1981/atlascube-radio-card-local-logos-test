@@ -20,7 +20,7 @@ from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST
 _LOGGER = logging.getLogger(__name__)
 
 _CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
-_CARD_VERSION = "0.1.14"
+_CARD_VERSION = "0.1.15"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 
@@ -236,7 +236,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 "source_url": url,
                 "content_type": content_type,
                 "selection_mode": selection_mode,
-                "algorithm_version": "0.1.14",
+                "algorithm_version": "0.1.15",
             }, ensure_ascii=False), encoding="utf-8")
             connection.send_result(msg["id"], {
                 "logo": f"/local/{LOGO_DIR}/{target.name}",
@@ -244,7 +244,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 "bytes": len(body),
                 "source_url": url,
                 "selection_mode": selection_mode,
-                "algorithm_version": "0.1.14",
+                "algorithm_version": "0.1.15",
             })
         except Exception as err:
             _LOGGER.warning("Nie udało się zapisać logo stacji: %s", err)
@@ -301,7 +301,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             metadata["source_url"] = url
             metadata["content_type"] = content_type
             metadata["selection_mode"] = metadata.get("selection_mode", "legacy")
-            metadata["algorithm_version"] = "0.1.14"
+            metadata["algorithm_version"] = "0.1.15"
             metadata_path.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
             connection.send_result(msg["id"], {
                 "logo": f"/local/{LOGO_DIR}/{target.name}",
@@ -339,7 +339,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                     try:
                         async with session.get(
                             "https://" + host + path,
-                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.14"},
+                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.15"},
                             timeout=12,
                         ) as response:
                             if response.status != 200:
@@ -365,7 +365,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             async with session.get(
                 "https://commons.wikimedia.org/w/api.php",
                 params=params,
-                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.14 (Home Assistant integration)"},
+                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.15 (Home Assistant integration)"},
                 timeout=15,
             ) as response:
                 if response.status != 200:
