@@ -1289,8 +1289,8 @@ class AtlasCubeRadioCard extends HTMLElement {
         .brand-cube { opacity:.58; }
         .brand.web { cursor:pointer; }
         .brand.web:active { transform:scale(.995); }
-        .station-logo-slot { position:relative; flex:0 0 auto; max-width:58%; min-height:90px; height:90px; padding:6px 3px 17px; box-sizing:border-box; display:flex; align-items:center; justify-content:flex-end; overflow:visible; }
-        .station-logo { position:relative; z-index:1; display:block; flex:0 1 auto; max-width:100%; max-height:60px; width:auto; height:auto; object-fit:contain; overflow:visible; filter:drop-shadow(0 0 4px rgba(250,252,255,.98)) drop-shadow(0 0 11px rgba(210,226,250,.82)) drop-shadow(0 0 18px rgba(190,210,240,.36)) drop-shadow(0 2px 5px rgba(0,0,0,.28)); }
+        .station-logo-slot { position:relative; flex:0 0 58%; width:58%; max-width:58%; min-width:0; min-height:90px; height:90px; padding:6px 3px 17px; box-sizing:border-box; display:flex; align-items:center; justify-content:flex-end; overflow:visible; }
+        .station-logo { position:relative; z-index:1; display:block; flex:0 1 100%; width:100%; min-width:0; max-width:100%; height:60px; max-height:60px; object-fit:contain; object-position:right center; overflow:visible; filter:drop-shadow(0 0 4px rgba(250,252,255,.98)) drop-shadow(0 0 11px rgba(210,226,250,.82)) drop-shadow(0 0 18px rgba(190,210,240,.36)) drop-shadow(0 2px 5px rgba(0,0,0,.28)); }
         .station-logo-origin { position:absolute; right:0; bottom:0; z-index:2; padding:2px 4px; border:1px solid rgba(255,255,255,.18); border-radius:5px; background:rgba(8,14,24,.82); color:#eaf3ff; font-size:8px; line-height:1.15; font-weight:800; letter-spacing:.035em; white-space:nowrap; box-shadow:0 1px 4px rgba(0,0,0,.24); pointer-events:none; }
         .station-logo-origin.disk { border-color:rgba(76,175,80,.65); color:#a5f0a9; }
         .station-logo-origin.online { border-color:rgba(33,150,243,.65); color:#a8dcff; }
@@ -1307,7 +1307,7 @@ class AtlasCubeRadioCard extends HTMLElement {
           background: rgba(0,0,0,.25);
         }
         .cover {
-          filter: drop-shadow(0 0 5px rgba(175,215,255,.34)) drop-shadow(0 9px 16px rgba(0,0,0,.42));
+          filter: drop-shadow(0 2px 4px rgba(190,225,255,.30)) drop-shadow(0 7px 10px rgba(0,0,0,.38)) drop-shadow(0 15px 20px rgba(0,0,0,.48));
         }
 
         .no-cover {
@@ -1465,7 +1465,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         ${background}
 
         <div class="content">
-          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.9</div>
+          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.10</div>
           <div class="logo-diagnostics ${this._logoPickerOpen ? "open" : ""}">
             <div class="logo-diagnostics-heading">PORÓWNANIE WYNIKÓW — STAŁE OZNACZENIA METOD</div><div class="logo-diagnostics-source">Kliknij wynik, aby tymczasowo sprawdzić go jako logo karty.</div>
             <div class="logo-diagnostics-row">
