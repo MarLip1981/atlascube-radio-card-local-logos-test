@@ -1165,6 +1165,7 @@ class AtlasCubeRadioCard extends HTMLElement {
           background:rgba(0,0,0,.10);
         }
         .logo-diagnostics.open { display:block; }
+        #logo-auto { margin-top:8px; border:1px solid var(--divider-color); border-radius:8px; padding:7px 10px; background:var(--card-background-color); color:var(--primary-text-color); cursor:pointer; }
         .logo-diagnostic-item { cursor:pointer; }
         .station-logo, .station-identity { cursor:pointer; }
         .logo-diagnostic-item.selected { outline:2px solid var(--primary-color, #03a9f4); outline-offset:2px; border-radius:8px; }
@@ -1385,6 +1386,7 @@ class AtlasCubeRadioCard extends HTMLElement {
                 </div>
               `).join("") : `<div class="logo-diagnostic-source">Oczekiwanie na wyniki wyszukiwania…</div>`}
             </div>
+            <button id="logo-auto" type="button">Przywróć wybór automatyczny</button>
           </div>
           ${!online ? `<div class="topbar"><div class="brand"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div></div><div class="offline-icon"><ha-icon icon="mdi:wifi-off"></ha-icon></div><div class="offline-title">Radio AtlasCube</div><div class="offline-text">niedostępne w sieci</div>` : `<div class="topbar"><div class="brand ${webUrl ? "web" : ""}" id="brand" title="${webUrl ? "Otwórz panel AtlasCube" : ""}"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div>${stationLogoEnabled && stationLogo ? `<div class="station-logo-slot"><img class="station-logo" src="${this._escape(stationLogo)}" data-original-src="${this._escape(this._stationLogo?.originalLogo || stationLogo)}" alt="" aria-hidden="true" onerror="this.getRootNode().host._retryStationLogoImage(this)"></div>` : ""}</div><div class="station-name">${this._escape(station && station !== "unknown" && station !== "unavailable" ? station : "Radio internetowe")}</div>${artworkEnabled && playing ? `${image}<div class="artist">${this._escape(artist || "Nieznany wykonawca")}</div><div class="title">${this._escape(title)}</div>${album ? `<div class="album">${this._escape(album)}</div>` : ""}` : !artworkEnabled ? `${image}` : ""}`}
           ${online ? `<div class="controls">
@@ -1416,6 +1418,23 @@ class AtlasCubeRadioCard extends HTMLElement {
       event.stopPropagation();
       this._logoPickerOpen = !this._logoPickerOpen;
       this._render();
+    });
+
+    this.shadowRoot.querySelector("#logo-auto")?.addEventListener("click", async event => {
+      event.stopPropagation();
+      const station = this._getStation();
+      if (!station || !this._hass?.callWS) return;
+      const key = this._stationLogoKey(station);
+      try {
+        await this._hass.callWS({ type: "atlascube_local_logos/delete", station_key: key });
+      } catch (error) {
+        console.warn("AtlasCube Local Logos: nie udało się usunąć lokalnego logo.", error);
+      }
+      this._stationLogoCache.delete(key);
+      this._stationLogoRequestId += 1;
+      this._logoPickerOpen = false;
+      this._stationLogo = null;
+      this._loadStationLogo();
     });
 
     this.shadowRoot.querySelectorAll(".logo-diagnostic-item").forEach(item => {
