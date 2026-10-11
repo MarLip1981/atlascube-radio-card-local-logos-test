@@ -735,7 +735,7 @@ class AtlasCubeRadioCard extends HTMLElement {
             const selectionMode = local.selection_mode || "legacy";
             // Tylko aktualny, automatycznie znaleziony wynik jest odczytywany
             // bez ponownego wyszukiwania. Ręczne i stare wpisy są fallbackiem.
-            if (selectionMode === "automatic" && local.algorithm_version === "0.1.15") {
+            if (selectionMode === "automatic" && local.algorithm_version === "0.1.14") {
               const diskResult = {
                 logo: this._logoCacheBust(local.logo),
                 originalLogo: local.source_url || local.logo,
