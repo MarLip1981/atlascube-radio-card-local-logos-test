@@ -13,6 +13,7 @@ class AtlasCubeRadioCard extends HTMLElement {
     this._stationLogoRequestId = 0;
     this._stationLogoDiagnostics = [];
     this._stationLogoDiagnosticsRequestId = 0;
+    this._stationLogoDiagnosticsReadyFor = null;
     this._lastTrack = "";
     this._lastStation = "";
     this._lastRenderSignature = "";
@@ -209,6 +210,12 @@ class AtlasCubeRadioCard extends HTMLElement {
     if (!enabled) return "<div class=\"station station-identity-text\">" + safeStation + "</div>";
     if (!logo) return "<div class=\"station-identity\"><div class=\"station station-logo-fallback-visible\">" + safeStation + "</div></div>";
     return "<div class=\"station-identity\"><img class=\"station-logo\" src=\"" + this._escape(logo) + "\" alt=\"\" aria-hidden=\"true\" onerror=\"this.style.display='none';this.nextElementSibling.style.display='block';\"><div class=\"station station-logo-fallback\">" + safeStation + "</div></div>";
+  }
+
+  _logoCacheBust(value) {
+    const url = String(value || "");
+    if (!url.startsWith("/local/")) return url;
+    return url + (url.includes("?") ? "&" : "?") + "v=" + Date.now();
   }
 
   _stationLogoKey(value) {
@@ -565,6 +572,7 @@ class AtlasCubeRadioCard extends HTMLElement {
 
   async _loadStationLogoDiagnostics(station) {
     const requestId = ++this._stationLogoDiagnosticsRequestId;
+    this._stationLogoDiagnosticsReadyFor = null;
     this._stationLogoDiagnostics = [];
     this._render();
 
@@ -649,9 +657,10 @@ class AtlasCubeRadioCard extends HTMLElement {
       const priority = ["NAZWA-2", "SZUKAJ-1", "COMMONS", "SZUKAJ-2", "NAZWA-1", "URL-1", "URL-2"];
       candidates.sort((a, b) => priority.indexOf(a.number) - priority.indexOf(b.number));
       this._stationLogoDiagnostics = candidates.slice(0, 7);
+      this._stationLogoDiagnosticsReadyFor = station;
 
-      // Jeśli nie wybrano ręcznie logo, karta startuje od pierwszego kandydata
-      // z uzgodnionej kolejności. Przy błędzie obrazka spróbuje kolejnych.
+      // Uzgodniona kolejność diagnostyczna jest autorytatywna. Unieważniamy
+      // równoległe wyszukiwanie, aby nie nadpisało wyboru ani pliku na dysku.
       const current = this._stationLogo;
       if (this._stationLogoDiagnostics.length &&
           !String(current?.source || "").startsWith("test-manual-") &&
@@ -668,13 +677,72 @@ class AtlasCubeRadioCard extends HTMLElement {
           expiresAt: Number.MAX_SAFE_INTEGER,
           retryAt: null
         };
-        this._stationLogoRequestId += 1;
+        const saveRequestId = ++this._stationLogoRequestId;
         this._stationLogo = selected;
         this._stationLogoCache.set(this._stationLogoKey(station), selected);
+        if (this._hass?.callWS) {
+          try {
+            const saved = await this._hass.callWS({
+              type: "atlascube_local_logos/save",
+              station,
+              station_key: this._stationLogoKey(station),
+              url: selected.originalLogo
+            });
+            if (saveRequestId === this._stationLogoRequestId && this._getStation() === station && saved?.logo) {
+              const persisted = {
+                ...selected,
+                logo: this._logoCacheBust(saved.logo),
+                originalLogo: saved.logo,
+                source: "disk-auto",
+                expiresAt: Number.MAX_SAFE_INTEGER,
+                retryAt: null
+              };
+              this._stationLogo = persisted;
+              this._stationLogoCache.set(this._stationLogoKey(station), persisted);
+            }
+          } catch (saveError) {
+            console.warn("AtlasCube Local Logos: nie udało się zapisać logo z ustalonej kolejności.", saveError);
+          }
+        }
       }
     } catch (error) {
       console.warn("AtlasCube TEST: nie udało się zebrać wyników diagnostycznych logo.", error);
       this._stationLogoDiagnostics = [];
+      this._stationLogoDiagnosticsReadyFor = station;
+    }
+
+    // Jeśli diagnostyka nie zwróciła kandydatów, zapisz logo z wyszukiwania
+    // zapasowego dopiero po jej zakończeniu. Unikamy wyścigu dwóch zapisów.
+    const current = this._stationLogo;
+    if (requestId === this._stationLogoDiagnosticsRequestId &&
+        !this._stationLogoDiagnostics.length &&
+        current?.logo && current.station === station &&
+        !String(current.source || "").startsWith("disk-") &&
+        !String(current.source || "").startsWith("test-manual-") &&
+        this._hass?.callWS) {
+      const saveRequestId = ++this._stationLogoRequestId;
+      try {
+        const saved = await this._hass.callWS({
+          type: "atlascube_local_logos/save",
+          station,
+          station_key: this._stationLogoKey(station),
+          url: current.originalLogo || current.logo
+        });
+        if (saveRequestId === this._stationLogoRequestId && this._getStation() === station && saved?.logo) {
+          const persisted = {
+            ...current,
+            logo: this._logoCacheBust(saved.logo),
+            originalLogo: saved.logo,
+            source: "disk-auto",
+            expiresAt: Number.MAX_SAFE_INTEGER,
+            retryAt: null
+          };
+          this._stationLogo = persisted;
+          this._stationLogoCache.set(this._stationLogoKey(station), persisted);
+        }
+      } catch (saveError) {
+        console.warn("AtlasCube Local Logos: nie udało się zapisać logo zapasowego.", saveError);
+      }
     }
 
     if (requestId === this._stationLogoDiagnosticsRequestId) this._render();
@@ -748,7 +816,7 @@ class AtlasCubeRadioCard extends HTMLElement {
           const local = await this._hass.callWS({ type: "atlascube_local_logos/get", station_key: cacheKey });
           if (requestId !== this._stationLogoRequestId) return;
           if (local?.logo) {
-            const diskResult = { logo: local.logo, originalLogo: local.logo, station, source: "disk-ha", matchedName: station, expiresAt: Number.MAX_SAFE_INTEGER, retryAt: null };
+            const diskResult = { logo: this._logoCacheBust(local.logo), originalLogo: local.logo, station, source: "disk-ha", matchedName: station, expiresAt: Number.MAX_SAFE_INTEGER, retryAt: null };
             this._stationLogoCache.set(cacheKey, diskResult);
             this._stationLogo = diskResult;
             this._render();
@@ -877,12 +945,12 @@ class AtlasCubeRadioCard extends HTMLElement {
       const hasLogo = Boolean(result?.logo);
       let chosenLogo = hasLogo ? result.logo : null;
       let chosenSource = result?.source || "none";
-      if (hasLogo && this._hass?.callWS) {
+      if (hasLogo && this._hass?.callWS && this._stationLogoDiagnosticsReadyFor === station) {
         try {
           const saved = await this._hass.callWS({ type: "atlascube_local_logos/save", station, station_key: cacheKey, url: result.originalLogo || result.logo });
           if (requestId !== this._stationLogoRequestId) return;
           if (saved?.logo) {
-            chosenLogo = saved.logo;
+            chosenLogo = this._logoCacheBust(saved.logo);
             chosenSource = "disk-auto";
           }
         } catch (saveError) {
@@ -1476,7 +1544,7 @@ class AtlasCubeRadioCard extends HTMLElement {
           this._hass.callWS({ type: "atlascube_local_logos/save", station: selected.station, station_key: this._stationLogoKey(selected.station), url: candidate.originalLogo || candidate.logo }).then(saved => {
             if (requestId !== this._stationLogoRequestId || this._getStation() !== selected.station) return;
             if (saved?.logo) {
-              const persisted = { ...selected, logo: saved.logo, originalLogo: saved.logo, source: "disk-manual", expiresAt: Number.MAX_SAFE_INTEGER, retryAt: null };
+              const persisted = { ...selected, logo: this._logoCacheBust(saved.logo), originalLogo: saved.logo, source: "disk-manual", expiresAt: Number.MAX_SAFE_INTEGER, retryAt: null };
               this._stationLogo = persisted;
               this._stationLogoCache.set(this._stationLogoKey(selected.station), persisted);
               this._render();
