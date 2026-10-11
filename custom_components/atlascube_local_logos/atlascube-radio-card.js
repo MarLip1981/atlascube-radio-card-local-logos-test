@@ -655,6 +655,7 @@ class AtlasCubeRadioCard extends HTMLElement {
       const current = this._stationLogo;
       if (this._stationLogoDiagnostics.length &&
           !String(current?.source || "").startsWith("test-manual-") &&
+          !String(current?.source || "").startsWith("disk-") &&
           current?.station === station) {
         const first = this._stationLogoDiagnostics[0];
         const selected = {
@@ -1116,7 +1117,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         }
 
         .card.has-art { min-height:500px; }
-        .card.playing-noart { background: radial-gradient(circle at 50% 42%, rgba(33,150,243,.25) 0%, rgba(33,150,243,.12) 42%, rgba(0,0,0,.12) 100%); border-color:rgba(33,150,243,.38); box-shadow:0 0 28px rgba(33,150,243,.11), 0 4px 18px rgba(0,0,0,.25); }
+        .card.playing-noart { background: radial-gradient(ellipse at 50% 38%, rgba(35,150,255,.34) 0%, rgba(20,130,245,.22) 36%, rgba(20,105,210,.10) 68%, rgba(0,0,0,.08) 100%); border-color:rgba(65,165,255,.48); box-shadow:inset 0 0 34px rgba(35,145,255,.10), 0 0 32px rgba(33,150,243,.16), 0 4px 18px rgba(0,0,0,.25); }
         .card.offline { background:rgba(25,25,25,.45); border-color:rgba(244,67,54,.18); }
         .card.idle-ready {
           background: radial-gradient(ellipse at 50% 45%, rgba(33,150,243,.12) 0%, rgba(33,150,243,.055) 48%, rgba(0,0,0,.12) 100%);
@@ -1175,7 +1176,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         .logo-diagnostics.open { display:block; }
         #logo-auto { margin-top:8px; border:1px solid var(--divider-color); border-radius:8px; padding:7px 10px; background:var(--card-background-color); color:var(--primary-text-color); cursor:pointer; }
         .logo-diagnostic-item { cursor:pointer; }
-        .station-logo, .station-identity { cursor:pointer; }
+        .station-logo, .station-identity, .station-logo-slot, .station-name { cursor:pointer; }
         .logo-diagnostic-item.selected { outline:2px solid var(--primary-color, #03a9f4); outline-offset:2px; border-radius:8px; }
         .logo-diagnostics-heading {
           margin:0 0 7px; font-size:10px; font-weight:800; opacity:.78;
@@ -1220,8 +1221,8 @@ class AtlasCubeRadioCard extends HTMLElement {
         .brand-cube { opacity:.58; }
         .brand.web { cursor:pointer; }
         .brand.web:active { transform:scale(.995); }
-        .station-logo-slot { position:relative; flex:0 0 auto; max-width:54%; height:64px; padding-bottom:10px; box-sizing:border-box; display:flex; align-items:center; justify-content:flex-end; overflow:hidden; }
-        .station-logo { display:block; max-width:100%; max-height:48px; width:auto; height:auto; object-fit:contain; filter:drop-shadow(0 0 3px rgba(245,248,255,.88)) drop-shadow(0 0 8px rgba(205,218,238,.62)) drop-shadow(0 2px 5px rgba(0,0,0,.28)); }
+        .station-logo-slot { position:relative; flex:0 0 auto; max-width:58%; height:76px; padding:8px 3px 13px; box-sizing:border-box; display:flex; align-items:center; justify-content:flex-end; overflow:visible; }
+        .station-logo { position:relative; z-index:1; display:block; max-width:100%; max-height:52px; width:auto; height:auto; object-fit:contain; filter:drop-shadow(0 0 4px rgba(250,252,255,.98)) drop-shadow(0 0 11px rgba(210,226,250,.82)) drop-shadow(0 0 18px rgba(190,210,240,.36)) drop-shadow(0 2px 5px rgba(0,0,0,.28)); }
         .station-logo-origin { position:absolute; right:0; bottom:0; z-index:2; padding:2px 4px; border:1px solid rgba(255,255,255,.18); border-radius:5px; background:rgba(8,14,24,.82); color:#eaf3ff; font-size:8px; line-height:1.15; font-weight:800; letter-spacing:.035em; white-space:nowrap; box-shadow:0 1px 4px rgba(0,0,0,.24); pointer-events:none; }
         .station-logo-origin.disk { border-color:rgba(76,175,80,.65); color:#a5f0a9; }
         .station-logo-origin.online { border-color:rgba(33,150,243,.65); color:#a8dcff; }
@@ -1382,7 +1383,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         ${background}
 
         <div class="content">
-          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.5</div>
+          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.6</div>
           <div class="logo-diagnostics ${this._logoPickerOpen ? "open" : ""}">
             <div class="logo-diagnostics-heading">PORÓWNANIE WYNIKÓW — STAŁE OZNACZENIA METOD</div><div class="logo-diagnostics-source">Kliknij wynik, aby tymczasowo sprawdzić go jako logo karty.</div>
             <div class="logo-diagnostics-row">
@@ -1425,11 +1426,13 @@ class AtlasCubeRadioCard extends HTMLElement {
       </div>
     `;
 
-    this.shadowRoot.querySelector(".station-identity")?.addEventListener("click", event => {
+    const openLogoPicker = event => {
       event.stopPropagation();
       this._logoPickerOpen = !this._logoPickerOpen;
       this._render();
-    });
+    };
+    this.shadowRoot.querySelector(".station-logo-slot")?.addEventListener("click", openLogoPicker);
+    this.shadowRoot.querySelector(".station-name")?.addEventListener("click", openLogoPicker);
 
     this.shadowRoot.querySelector("#logo-auto")?.addEventListener("click", async event => {
       event.stopPropagation();
@@ -1831,8 +1834,8 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
       </style>
 
       <div class="box">
-        <div class="badge">TEST ver0.1.5 — LOGO LOKALNE</div>
-        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.5</h2>
+        <div class="badge">TEST ver0.1.6 — LOGO LOKALNE</div>
+        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.6</h2>
         <p>Karta wykrywa AtlasCube i korzysta z natywnej dostępności MQTT przez stany jego encji.</p>
 
         <button class="auto" id="auto">🔎 Automatycznie wykryj AtlasCube</button>
@@ -1918,8 +1921,8 @@ customElements.define("atlascube-radio-card-local-disk-test", AtlasCubeRadioCard
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "atlascube-radio-card-local-disk-test",
-  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.5",
-  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.5",
+  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.6",
+  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.6",
   preview: true,
   documentationURL: "https://github.com/MarLip1981/atlascube-radio-card-local-logos-test"
 });
