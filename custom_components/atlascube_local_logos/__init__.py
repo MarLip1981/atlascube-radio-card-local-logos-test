@@ -1,6 +1,7 @@
 """Server-side logo cache for the AtlasCube Lovelace card."""
 from __future__ import annotations
 import ipaddress
+import json
 import logging
 import re
 from pathlib import Path
@@ -14,12 +15,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST, WS_SAVE
+from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST, WS_SAVE, WS_REFRESH
 
 _LOGGER = logging.getLogger(__name__)
 
 _CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
-_CARD_VERSION = "0.1.10"
+_CARD_VERSION = "0.1.11"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 
@@ -158,6 +159,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 if path.is_file():
                     path.unlink()
                     removed = True
+            metadata = folder / f"{key}.json"
+            if metadata.is_file():
+                metadata.unlink()
+                removed = True
             connection.send_result(msg["id"], {"removed": removed})
         except (ValueError, OSError) as err:
             connection.send_error(msg["id"], "logo_delete_failed", str(err))
@@ -209,15 +214,80 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 if old.exists() and old != target:
                     old.unlink()
             target.write_bytes(body)
-            connection.send_result(msg["id"], {"logo": f"/local/{LOGO_DIR}/{target.name}", "station": msg["station"], "bytes": len(body)})
+            # Zapamiętujemy dokładny adres źródłowy, aby Odśwież pobierał ten sam wariant logo.
+            metadata = folder / f"{key}.json"
+            metadata.write_text(json.dumps({
+                "source_url": url,
+                "content_type": content_type,
+            }, ensure_ascii=False), encoding="utf-8")
+            connection.send_result(msg["id"], {"logo": f"/local/{LOGO_DIR}/{target.name}", "station": msg["station"], "bytes": len(body), "source_url": url})
         except Exception as err:
             _LOGGER.warning("Nie udało się zapisać logo stacji: %s", err)
             connection.send_error(msg["id"], "logo_save_failed", str(err))
+
+    @websocket_api.websocket_command({
+        vol.Required("type"): WS_REFRESH,
+        vol.Required("station_key"): str,
+    })
+    @websocket_api.async_response
+    async def ws_refresh(hass, connection, msg):
+        """Re-download the exact source URL previously used for this station."""
+        try:
+            key = _safe_key(msg["station_key"])
+            folder = hass.data[DOMAIN]["folder"]
+            metadata_path = folder / f"{key}.json"
+            if not metadata_path.is_file():
+                raise ValueError("Brak zapisanego adresu źródłowego dla tego logo. Wybierz logo ponownie z listy.")
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            url = _public_url(metadata.get("source_url", ""))
+            session = async_get_clientsession(hass)
+            current_url = url
+            body = b""
+            content_type = ""
+            for redirect_count in range(4):
+                current_url = _public_url(current_url)
+                async with session.get(current_url, allow_redirects=False, timeout=15) as response:
+                    if response.status in (301, 302, 303, 307, 308):
+                        location = response.headers.get("Location")
+                        if not location or redirect_count == 3:
+                            raise ValueError("Za dużo lub nieprawidłowe przekierowania źródła logo")
+                        current_url = urljoin(current_url, location)
+                        continue
+                    if response.status != 200:
+                        raise ValueError(f"Źródło logo zwróciło HTTP {response.status}")
+                    content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+                    if content_type not in _EXTENSIONS:
+                        raise ValueError("Źródło nie zwróciło obsługiwanego obrazu PNG/JPEG/WebP/GIF/ICO/AVIF")
+                    if response.content_length is not None and response.content_length > MAX_IMAGE_BYTES:
+                        raise ValueError("Logo przekracza limit 2 MB")
+                    body = await response.content.read(MAX_IMAGE_BYTES + 1)
+                    if not body or len(body) > MAX_IMAGE_BYTES:
+                        raise ValueError("Pusty obraz lub przekroczony limit 2 MB")
+                    break
+            else:
+                raise ValueError("Nie udało się pobrać logo")
+            ext = _EXTENSIONS[content_type]
+            target = folder / f"{key}{ext}"
+            for old_ext in _EXTENSIONS.values():
+                old = folder / f"{key}{old_ext}"
+                if old.exists() and old != target:
+                    old.unlink()
+            target.write_bytes(body)
+            connection.send_result(msg["id"], {
+                "logo": f"/local/{LOGO_DIR}/{target.name}",
+                "source_url": url,
+                "bytes": len(body),
+                "refreshed": True,
+            })
+        except Exception as err:
+            _LOGGER.warning("Nie udało się odświeżyć logo stacji: %s", err)
+            connection.send_error(msg["id"], "logo_refresh_failed", str(err))
 
     websocket_api.async_register_command(hass, ws_get)
     websocket_api.async_register_command(hass, ws_list)
     websocket_api.async_register_command(hass, ws_save)
     websocket_api.async_register_command(hass, ws_delete)
+    websocket_api.async_register_command(hass, ws_refresh)
     return True
 
 
