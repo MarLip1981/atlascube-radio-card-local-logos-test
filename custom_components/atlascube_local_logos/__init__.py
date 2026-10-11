@@ -126,7 +126,10 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     hass.data.setdefault(DOMAIN, {})["folder"] = folder
     # Register the bundled frontend module after HA has completed startup, when
     # Lovelace and its resource collection are available and ready to persist.
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _async_register_frontend)
+    async def _on_home_assistant_started(_event) -> None:
+        await _async_register_frontend(hass)
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _on_home_assistant_started)
 
     @websocket_api.websocket_command({vol.Required("type"): WS_GET, vol.Required("station_key"): str})
     @websocket_api.async_response
