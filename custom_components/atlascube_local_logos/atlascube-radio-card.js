@@ -66,10 +66,6 @@ class AtlasCubeRadioCard extends HTMLElement {
         this._loadStationLogo();
         this._loadStationLogoDiagnostics(station);
       }
-    } else if (station && this._config.show_station_logo !== false &&
-        this._stationLogo && !this._stationLogo.logo && !this._stationLogo.loading &&
-        this._stationLogo.retryAt && Date.now() >= this._stationLogo.retryAt) {
-      this._loadStationLogo();
     }
     const signature = this._renderStateSignature();
     if (signature !== this._lastRenderSignature) {
@@ -917,7 +913,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         source: chosenSource,
         matchedName: result?.matchedName || result?.matchedTitle || null,
         expiresAt: hasLogo ? Number.MAX_SAFE_INTEGER : Date.now() + 180000,
-        retryAt: hasLogo ? null : Date.now() + 180000
+        retryAt: null
       };
       this._stationLogoCache.set(cacheKey, finalResult);
       this._stationLogo = finalResult;
@@ -930,7 +926,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         source: "none",
         error: error?.message || "Nieznany błąd",
         expiresAt: Date.now() + 30000,
-        retryAt: Date.now() + 30000
+        retryAt: null
       };
       this._stationLogoCache.set(cacheKey, finalResult);
       this._stationLogo = finalResult;
