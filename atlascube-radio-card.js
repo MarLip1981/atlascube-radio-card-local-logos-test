@@ -480,8 +480,11 @@ class AtlasCubeRadioCard extends HTMLElement {
     const wantedTokens = this._stationNameTokens(wanted);
     const candidateTokens = this._stationNameTokens(name);
     const similarity = this._stationNameSimilarity(wanted, name);
-    if (similarity < 0.999) return -1;
-
+    // Jednowyrazowe marki wymagają dopasowania dokładnego; dłuższe nazwy muszą
+    // mieć mocny odpowiednik literowy dla każdego tokenu.
+    if (!wantedTokens.length || !candidateTokens.length) return -1;
+    if (wantedTokens.length === 1 && similarity < 0.999) return -1;
+    if (wantedTokens.length > 1 && similarity < 0.82) return -1;
     let score = 500 + similarity * 100;
     if (String(result?.countrycode || "").toUpperCase() === "PL") score += 20;
     score += Math.min(20, (Number(result?.votes) || 0) / 100);
@@ -659,90 +662,10 @@ class AtlasCubeRadioCard extends HTMLElement {
       this._stationLogoDiagnostics = candidates.slice(0, 7);
       this._stationLogoDiagnosticsReadyFor = station;
 
-      // Uzgodniona kolejność diagnostyczna jest autorytatywna. Unieważniamy
-      // równoległe wyszukiwanie, aby nie nadpisało wyboru ani pliku na dysku.
-      const current = this._stationLogo;
-      if (this._stationLogoDiagnostics.length &&
-          !String(current?.source || "").startsWith("test-manual-") &&
-          !String(current?.source || "").startsWith("disk-") &&
-          current?.station === station) {
-        const first = this._stationLogoDiagnostics[0];
-        const selected = {
-          logo: first.logo,
-          originalLogo: first.originalLogo || first.logo,
-          station,
-          source: "priority-" + first.number,
-          matchedName: first.matchedName,
-          candidateNumber: first.number,
-          expiresAt: Number.MAX_SAFE_INTEGER,
-          retryAt: null
-        };
-        const saveRequestId = ++this._stationLogoRequestId;
-        this._stationLogo = selected;
-        this._stationLogoCache.set(this._stationLogoKey(station), selected);
-        if (this._hass?.callWS) {
-          try {
-            const saved = await this._hass.callWS({
-              type: "atlascube_local_logos/save",
-              station,
-              station_key: this._stationLogoKey(station),
-              url: selected.originalLogo
-            });
-            if (saveRequestId === this._stationLogoRequestId && this._getStation() === station && saved?.logo) {
-              const persisted = {
-                ...selected,
-                logo: this._logoCacheBust(saved.logo),
-                originalLogo: saved.logo,
-                source: "disk-auto",
-                expiresAt: Number.MAX_SAFE_INTEGER,
-                retryAt: null
-              };
-              this._stationLogo = persisted;
-              this._stationLogoCache.set(this._stationLogoKey(station), persisted);
-            }
-          } catch (saveError) {
-            console.warn("AtlasCube Local Logos: nie udało się zapisać logo z ustalonej kolejności.", saveError);
-          }
-        }
-      }
     } catch (error) {
       console.warn("AtlasCube TEST: nie udało się zebrać wyników diagnostycznych logo.", error);
       this._stationLogoDiagnostics = [];
       this._stationLogoDiagnosticsReadyFor = station;
-    }
-
-    // Jeśli diagnostyka nie zwróciła kandydatów, zapisz logo z wyszukiwania
-    // zapasowego dopiero po jej zakończeniu. Unikamy wyścigu dwóch zapisów.
-    const current = this._stationLogo;
-    if (requestId === this._stationLogoDiagnosticsRequestId &&
-        !this._stationLogoDiagnostics.length &&
-        current?.logo && current.station === station &&
-        !String(current.source || "").startsWith("disk-") &&
-        !String(current.source || "").startsWith("test-manual-") &&
-        this._hass?.callWS) {
-      const saveRequestId = ++this._stationLogoRequestId;
-      try {
-        const saved = await this._hass.callWS({
-          type: "atlascube_local_logos/save",
-          station,
-          station_key: this._stationLogoKey(station),
-          url: current.originalLogo || current.logo
-        });
-        if (saveRequestId === this._stationLogoRequestId && this._getStation() === station && saved?.logo) {
-          const persisted = {
-            ...current,
-            logo: this._logoCacheBust(saved.logo),
-            originalLogo: saved.logo,
-            source: "disk-auto",
-            expiresAt: Number.MAX_SAFE_INTEGER,
-            retryAt: null
-          };
-          this._stationLogo = persisted;
-          this._stationLogoCache.set(this._stationLogoKey(station), persisted);
-        }
-      } catch (saveError) {
-        console.warn("AtlasCube Local Logos: nie udało się zapisać logo zapasowego.", saveError);
-      }
     }
 
     if (requestId === this._stationLogoDiagnosticsRequestId) this._render();
@@ -816,11 +739,28 @@ class AtlasCubeRadioCard extends HTMLElement {
           const local = await this._hass.callWS({ type: "atlascube_local_logos/get", station_key: cacheKey });
           if (requestId !== this._stationLogoRequestId) return;
           if (local?.logo) {
-            const diskResult = { logo: this._logoCacheBust(local.logo), originalLogo: local.logo, station, source: "disk-ha", matchedName: station, expiresAt: Number.MAX_SAFE_INTEGER, retryAt: null };
-            this._stationLogoCache.set(cacheKey, diskResult);
-            this._stationLogo = diskResult;
-            this._render();
-            return;
+            const selectionMode = local.selection_mode || "legacy";
+            const oldAutomaticResult = selectionMode === "automatic" && local.algorithm_version !== "0.1.12";
+            if (selectionMode === "manual" || selectionMode === "legacy" || !oldAutomaticResult) {
+              const diskResult = {
+                logo: this._logoCacheBust(local.logo),
+                originalLogo: local.source_url || local.logo,
+                station,
+                source: selectionMode === "manual" ? "disk-manual" : "disk-auto",
+                selectionMode,
+                matchedName: station,
+                expiresAt: Number.MAX_SAFE_INTEGER,
+                retryAt: null
+              };
+              this._stationLogoCache.set(cacheKey, diskResult);
+              this._stationLogo = diskResult;
+              this._render();
+              return;
+            }
+            // Stare logo dobrane automatycznie przez wcześniejszy algorytm nie blokuje
+            // nowego wyszukiwania. Ręczne nadpisania są chronione powyżej.
+            await this._hass.callWS({ type: "atlascube_local_logos/delete", station_key: cacheKey });
+            if (requestId !== this._stationLogoRequestId) return;
           }
         } catch (storageError) {
           console.warn("AtlasCube Local Logos: biblioteka HA niedostępna; szukam online.", storageError);
@@ -834,101 +774,63 @@ class AtlasCubeRadioCard extends HTMLElement {
       const searchNames = this._stationLogoSearchNames(station);
       let result = null;
 
-      // URL jest pierwszym źródłem, ale nie ufamy rekordowi, jeśli jego nazwa
-      // wskazuje inną stację lub wariant (np. Eska Rock TV zamiast Eska Rock).
-      if (deviceStation?.url) {
+      // 1. Najpierw dokładna nazwa w Radio Browser — to główne źródło automatu.
+      const exactQueryName = deviceStation?.name || this._stationLogoQueryName(station);
+      const byExactName = await this._stationLogoRadioBrowserGet(
+        "/json/stations/bynameexact/" + encodeURIComponent(exactQueryName) +
+        "?hidebroken=true&limit=30"
+      );
+      if (requestId !== this._stationLogoRequestId) return;
+      const exactMatches = byExactName
+        .filter(item => item?.name && item?.favicon)
+        .filter(item => !this._stationLogoHasConflictingVariant(station, item.name))
+        .map(item => ({ item, score: Math.max(this._stationLogoScore(item, station), this._stationLogoScore(item, exactQueryName)) }))
+        .filter(entry => entry.score >= 0)
+        .sort((x, y) => y.score - x.score || (Number(y.item.clickcount) || 0) - (Number(x.item.clickcount) || 0));
+      if (exactMatches[0]) {
+        const item = exactMatches[0].item;
+        result = { logo: String(item.favicon).replace(/^http:/i, "https:"), originalLogo: String(item.favicon), source: "radio-browser-exact-name", matchedName: item.name };
+      }
+
+      // 2. Dopiero potem weryfikacja po URL strumienia — URL nie wystarcza bez zgodnej nazwy.
+      if (!result?.logo && deviceStation?.url) {
         const byUrl = await this._stationLogoRadioBrowserGet(
-          "/json/stations/byurl?url=" + encodeURIComponent(deviceStation.url) +
-          "&hidebroken=true&limit=20"
+          "/json/stations/byurl?url=" + encodeURIComponent(deviceStation.url) + "&hidebroken=true&limit=30"
         );
         if (requestId !== this._stationLogoRequestId) return;
-
         const urlMatches = byUrl
           .filter(item => item?.name && item?.favicon)
-          // URL strumienia jest mocnym sygnałem: dopuszczamy nieco inną
-          // pisownię nazwy, ale odrzucamy jawnie inny wariant kanału.
           .filter(item => !this._stationLogoHasConflictingVariant(station, item.name))
-          .map(item => ({ item, score: this._stationLogoScore(item, station) }))
+          .map(item => ({ item, score: Math.max(this._stationLogoScore(item, station), this._stationLogoScore(item, deviceStation?.name || station)) }))
           .filter(entry => entry.score >= 0)
-          .sort((a, b) => b.score - a.score ||
-            (Number(b.item.clickcount) || 0) - (Number(a.item.clickcount) || 0))
-          .map(entry => entry.item);
-
+          .sort((x, y) => y.score - x.score || (Number(y.item.clickcount) || 0) - (Number(x.item.clickcount) || 0));
         if (urlMatches[0]) {
-          const item = urlMatches[0];
-          result = {
-            logo: String(item.favicon).replace(/^http:/i, "https:"),
-            originalLogo: String(item.favicon),
-            source: "radio-browser-url-verified-name",
-            matchedName: item.name,
-            matchedStream: deviceStation.url
-          };
+          const item = urlMatches[0].item;
+          result = { logo: String(item.favicon).replace(/^http:/i, "https:"), originalLogo: String(item.favicon), source: "radio-browser-url-verified-name", matchedName: item.name, matchedStream: deviceStation.url };
         }
       }
 
-      // Jeśli URL nie dał potwierdzonego logo, przywracamy szukanie po nazwie.
-      // To ważne dla stacji, których strumień nie jest poprawnie skatalogowany
-      // w Radio Browser. Nigdy nie akceptujemy tu podobnego, lecz innego kanału.
-      if (!result?.logo && deviceStation?.name) {
-        const byExactName = await this._stationLogoRadioBrowserGet(
-          "/json/stations/bynameexact/" + encodeURIComponent(deviceStation.name) +
-          "?hidebroken=true&limit=20"
-        );
-        if (requestId !== this._stationLogoRequestId) return;
-
-        const exactMatches = byExactName
-          .filter(item => item?.name && item?.favicon)
-          .filter(item => !this._stationLogoHasConflictingVariant(station, item.name))
-          .map(item => ({ item, score: this._stationLogoScore(item, station) }))
-          .filter(entry => entry.score >= 0)
-          .sort((a, b) => b.score - a.score ||
-            (Number(b.item.clickcount) || 0) - (Number(a.item.clickcount) || 0))
-          .map(entry => entry.item);
-
-        if (exactMatches[0]) {
-          const item = exactMatches[0];
-          result = {
-            logo: String(item.favicon).replace(/^http:/i, "https:"),
-            originalLogo: String(item.favicon),
-            source: "radio-browser-exact-name",
-            matchedName: item.name
-          };
-        }
-      }
-
-      // Ostatnia próba w Radio Browser: szersze wyszukiwanie, ale tylko
-      // kandydaci o zgodnej, kanonicznej nazwie. Bez dopasowań typu Eska Rock TV.
+      // 3. Szersze wyszukiwanie jako fallback: porównanie tokenów całej nazwy i liter.
       if (!result?.logo) {
         const responses = await Promise.all(searchNames.map(queryName =>
-          this._stationLogoRadioBrowserGet(
-            "/json/stations/search?name=" + encodeURIComponent(queryName) +
-            "&limit=100&order=clickcount&reverse=true"
-          )
+          this._stationLogoRadioBrowserGet("/json/stations/search?name=" + encodeURIComponent(queryName) + "&limit=100&order=clickcount&reverse=true")
         ));
         if (requestId !== this._stationLogoRequestId) return;
-
         const unique = new Map();
         for (const item of responses.flat()) {
-          if (!item?.name || !item?.favicon) continue;
-          if (this._stationLogoKey(item.name) !== wantedKey) continue;
+          if (!item?.name || !item?.favicon || this._stationLogoHasConflictingVariant(station, item.name)) continue;
+          const score = Math.max(this._stationLogoScore(item, station), ...searchNames.map(name => this._stationLogoScore(item, name)));
+          if (score < 0) continue;
           const id = this._normalize(item.name) + "|" + String(item.favicon);
-          if (!unique.has(id)) unique.set(id, item);
+          const existing = unique.get(id);
+          if (!existing || score > existing.score) unique.set(id, { item, score });
         }
-
-        const candidates = [...unique.values()]
-          .sort((a, b) => (Number(b.clickcount) || 0) - (Number(a.clickcount) || 0));
-
+        const candidates = [...unique.values()].sort((x, y) => y.score - x.score || (Number(y.item.clickcount) || 0) - (Number(x.item.clickcount) || 0));
         if (candidates[0]) {
-          const item = candidates[0];
-          result = {
-            logo: String(item.favicon).replace(/^http:/i, "https:"),
-            originalLogo: String(item.favicon),
-            source: "radio-browser-name-verified",
-            matchedName: item.name
-          };
+          const item = candidates[0].item;
+          result = { logo: String(item.favicon).replace(/^http:/i, "https:"), originalLogo: String(item.favicon), source: "radio-browser-name-verified", matchedName: item.name };
         }
       }
-
       if (requestId !== this._stationLogoRequestId) return;
 
       // Wikimedia Commons jest wyłącznie ostatnim fallbackiem. Jeśli nie
@@ -945,9 +847,9 @@ class AtlasCubeRadioCard extends HTMLElement {
       const hasLogo = Boolean(result?.logo);
       let chosenLogo = hasLogo ? result.logo : null;
       let chosenSource = result?.source || "none";
-      if (hasLogo && this._hass?.callWS && this._stationLogoDiagnosticsReadyFor === station) {
+      if (hasLogo && this._hass?.callWS) {
         try {
-          const saved = await this._hass.callWS({ type: "atlascube_local_logos/save", station, station_key: cacheKey, url: result.originalLogo || result.logo });
+          const saved = await this._hass.callWS({ type: "atlascube_local_logos/save", station, station_key: cacheKey, url: result.originalLogo || result.logo, selection_mode: "automatic" });
           if (requestId !== this._stationLogoRequestId) return;
           if (saved?.logo) {
             chosenLogo = this._logoCacheBust(saved.logo);
@@ -1466,7 +1368,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         ${background}
 
         <div class="content">
-          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.11</div>
+          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.12</div>
           <div class="logo-diagnostics ${this._logoPickerOpen ? "open" : ""}">
             <div class="logo-diagnostics-heading">PORÓWNANIE WYNIKÓW — STAŁE OZNACZENIA METOD</div><div class="logo-diagnostics-source">Kliknij wynik, aby tymczasowo sprawdzić go jako logo karty.</div>
             <div class="logo-diagnostics-row">
@@ -1597,7 +1499,8 @@ class AtlasCubeRadioCard extends HTMLElement {
                 type: "atlascube_local_logos/save",
                 station: selected.station,
                 station_key: this._stationLogoKey(selected.station),
-                url: candidate.originalLogo || candidate.logo
+                url: candidate.originalLogo || candidate.logo,
+                selection_mode: "manual"
               });
             } catch (firstError) {
               // Część serwerów blokuje favicon bezpośrednio, mimo że obraz
@@ -1607,7 +1510,8 @@ class AtlasCubeRadioCard extends HTMLElement {
                   type: "atlascube_local_logos/save",
                   station: selected.station,
                   station_key: this._stationLogoKey(selected.station),
-                  url: displayedLogo
+                  url: displayedLogo,
+                  selection_mode: "manual"
                 });
               }
               throw firstError;
@@ -1974,8 +1878,8 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
       </style>
 
       <div class="box">
-        <div class="badge">TEST ver0.1.11 — LOGO LOKALNE</div>
-        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.11</h2>
+        <div class="badge">TEST ver0.1.12 — LOGO LOKALNE</div>
+        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.12</h2>
         <p>Karta wykrywa AtlasCube i korzysta z natywnej dostępności MQTT przez stany jego encji.</p>
 
         <button class="auto" id="auto">🔎 Automatycznie wykryj AtlasCube</button>
@@ -2061,8 +1965,8 @@ customElements.define("atlascube-radio-card-local-disk-test", AtlasCubeRadioCard
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "atlascube-radio-card-local-disk-test",
-  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.11",
-  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.11",
+  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.12",
+  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.12",
   preview: true,
   documentationURL: "https://github.com/MarLip1981/atlascube-radio-card-local-logos-test"
 });
