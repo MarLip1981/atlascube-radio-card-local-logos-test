@@ -18,7 +18,7 @@ from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST
 _LOGGER = logging.getLogger(__name__)
 
 _CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
-_CARD_VERSION = "0.1.2"
+_CARD_VERSION = "0.1.3"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 
@@ -48,7 +48,7 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
 
     # YAML mode is read-only. Register the module through Home Assistant's
     # frontend helper instead of trying to write to the YAML resource list.
-    if getattr(lovelace, "mode", "storage") == "yaml":
+    if getattr(lovelace, "resource_mode", "storage") == "yaml":
         add_extra_js_url(hass, _RESOURCE_URL)
         _LOGGER.info("Zarejestrowano kartę AtlasCube jako dodatkowy moduł JS.")
         return
