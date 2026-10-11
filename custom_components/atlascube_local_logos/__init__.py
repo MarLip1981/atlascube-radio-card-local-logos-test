@@ -10,11 +10,86 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST, WS_SAVE
 
 _LOGGER = logging.getLogger(__name__)
+
+_CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
+_CARD_VERSION = "0.1.2"
+_RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
+
+
+async def _async_register_frontend(hass: HomeAssistant) -> None:
+    """Serve the bundled card and register it in Lovelace automatically."""
+    card_path = Path(__file__).parent / "atlascube-radio-card.js"
+
+    try:
+        await hass.http.async_register_static_paths([
+            StaticPathConfig(_CARD_URL, str(card_path), cache_headers=False)
+        ])
+    except RuntimeError as err:
+        # A duplicate route can occur after an integration reload; don't hide
+        # unrelated registration errors.
+        if "already registered" not in str(err).lower() and "duplicate" not in str(err).lower():
+            _LOGGER.warning("Nie udało się zarejestrować pliku karty AtlasCube: %s", err)
+            return
+
+    lovelace = hass.data.get("lovelace")
+    if lovelace is None:
+        _LOGGER.warning(
+            "Karta AtlasCube jest dostępna pod %s, ale Lovelace nie udostępnił rejestru zasobów.",
+            _CARD_URL,
+        )
+        return
+
+    # YAML mode is read-only. Register the module through Home Assistant's
+    # frontend helper instead of trying to write to the YAML resource list.
+    if getattr(lovelace, "mode", "storage") == "yaml":
+        add_extra_js_url(hass, _RESOURCE_URL)
+        _LOGGER.info("Zarejestrowano kartę AtlasCube jako dodatkowy moduł JS.")
+        return
+
+    resources = getattr(lovelace, "resources", None)
+    if resources is None:
+        _LOGGER.warning("Nie znaleziono rejestru zasobów Lovelace dla karty AtlasCube.")
+        return
+
+    try:
+        # ResourceStorageCollection is lazy-loaded. Load it before async_items
+        # or async_create_item to avoid overwriting existing dashboard resources.
+        if not getattr(resources, "loaded", True):
+            await resources.async_load()
+
+        existing = list(resources.async_items())
+        matching = [
+            item for item in existing
+            if str(item.get("url", "")).split("?", 1)[0] == _CARD_URL
+        ]
+        if matching:
+            primary = matching[0]
+            if primary.get("url") != _RESOURCE_URL or primary.get("res_type") != "module":
+                await resources.async_update_item(
+                    primary["id"], {"res_type": "module", "url": _RESOURCE_URL}
+                )
+            # Remove duplicates of this integration's URL, if any.
+            for duplicate in matching[1:]:
+                await resources.async_delete_item(duplicate["id"])
+            _LOGGER.info("Zasób karty AtlasCube jest już zarejestrowany: %s", _RESOURCE_URL)
+            return
+
+        await resources.async_create_item({"res_type": "module", "url": _RESOURCE_URL})
+        _LOGGER.info("Automatycznie dodano zasób karty AtlasCube do Lovelace: %s", _RESOURCE_URL)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.exception(
+            "Nie udało się automatycznie dodać zasobu karty AtlasCube. "
+            "Karta może wymagać ponownego uruchomienia HA: %s", err
+        )
+
+
 _EXTENSIONS = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif", "image/x-icon": ".ico", "image/vnd.microsoft.icon": ".ico", "image/avif": ".avif"}
 
 
@@ -49,12 +124,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     folder = Path(hass.config.path("www", LOGO_DIR))
     folder.mkdir(parents=True, exist_ok=True)
     hass.data.setdefault(DOMAIN, {})["folder"] = folder
-    # The integration itself serves the Lovelace card file, so HACS only needs
-    # to install this single integration repository.
-    card_path = Path(__file__).parent / "atlascube-radio-card.js"
-    await hass.http.async_register_static_paths([
-        StaticPathConfig("/atlascube-local-logos/atlascube-radio-card.js", str(card_path), cache_headers=False)
-    ])
+    # Register the bundled frontend module after HA has completed startup, when
+    # Lovelace and its resource collection are available and ready to persist.
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _async_register_frontend)
 
     @websocket_api.websocket_command({vol.Required("type"): WS_GET, vol.Required("station_key"): str})
     @websocket_api.async_response
