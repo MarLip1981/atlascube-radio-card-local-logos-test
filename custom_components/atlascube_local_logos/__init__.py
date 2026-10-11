@@ -10,8 +10,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import HomeAssistant
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST, WS_SAVE
@@ -124,12 +123,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     folder = Path(hass.config.path("www", LOGO_DIR))
     folder.mkdir(parents=True, exist_ok=True)
     hass.data.setdefault(DOMAIN, {})["folder"] = folder
-    # Register the bundled frontend module after HA has completed startup, when
-    # Lovelace and its resource collection are available and ready to persist.
-    async def _on_home_assistant_started(_event) -> None:
-        await _async_register_frontend(hass)
-
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _on_home_assistant_started)
 
     @websocket_api.websocket_command({vol.Required("type"): WS_GET, vol.Required("station_key"): str})
     @websocket_api.async_response
@@ -230,6 +223,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     folder = Path(hass.config.path("www", LOGO_DIR))
     folder.mkdir(parents=True, exist_ok=True)
     hass.data.setdefault(DOMAIN, {})["folder"] = folder
+    # Config-entry setup also runs when the user adds the integration after HA
+    # has already started, so registration must happen here rather than waiting
+    # for EVENT_HOMEASSISTANT_STARTED.
+    await _async_register_frontend(hass)
     return True
 
 
