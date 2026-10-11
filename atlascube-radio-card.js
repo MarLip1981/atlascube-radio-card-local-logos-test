@@ -1242,7 +1242,7 @@ class AtlasCubeRadioCard extends HTMLElement {
           background:rgba(0,0,0,.10);
         }
         .logo-diagnostics.open { display:block; }
-        #logo-auto { margin-top:8px; border:1px solid var(--divider-color); border-radius:8px; padding:7px 10px; background:var(--card-background-color); color:var(--primary-text-color); cursor:pointer; }
+        .logo-picker-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }\n        #logo-auto, #logo-refresh { margin-top:8px; border:1px solid var(--divider-color); border-radius:8px; padding:7px 10px; background:var(--card-background-color); color:var(--primary-text-color); cursor:pointer; }
         .logo-diagnostic-item { cursor:pointer; }
         .station-logo, .station-identity, .station-logo-slot, .station-name { cursor:pointer; }
         .logo-diagnostic-item.selected { outline:2px solid var(--primary-color, #03a9f4); outline-offset:2px; border-radius:8px; }
@@ -1465,7 +1465,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         ${background}
 
         <div class="content">
-          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.10</div>
+          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.11</div>
           <div class="logo-diagnostics ${this._logoPickerOpen ? "open" : ""}">
             <div class="logo-diagnostics-heading">PORÓWNANIE WYNIKÓW — STAŁE OZNACZENIA METOD</div><div class="logo-diagnostics-source">Kliknij wynik, aby tymczasowo sprawdzić go jako logo karty.</div>
             <div class="logo-diagnostics-row">
@@ -1480,7 +1480,7 @@ class AtlasCubeRadioCard extends HTMLElement {
                 </div>
               `).join("") : `<div class="logo-diagnostic-source">Oczekiwanie na wyniki wyszukiwania…</div>`}
             </div>
-            <button id="logo-auto" type="button">Przywróć wybór automatyczny</button>
+            <div class="logo-picker-actions"><button id="logo-refresh" type="button" title="Pobierz ponownie logo z tego samego adresu źródłowego">↻ Odśwież zapisane logo</button><button id="logo-auto" type="button">Przywróć wybór automatyczny</button></div>
           </div>
           ${!online ? `<div class="topbar"><div class="brand"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div></div><div class="offline-icon"><ha-icon icon="mdi:wifi-off"></ha-icon></div><div class="offline-title">Radio AtlasCube</div><div class="offline-text">niedostępne w sieci</div>` : `<div class="topbar"><div class="brand ${webUrl ? "web" : ""}" id="brand" title="${webUrl ? "Otwórz panel AtlasCube" : ""}"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div>${stationLogoEnabled && stationLogo ? `<div class="station-logo-slot"><img class="station-logo" src="${this._escape(stationLogo)}" data-original-src="${this._escape(this._stationLogo?.originalLogo || stationLogo)}" alt="" aria-hidden="true" onerror="this.getRootNode().host._retryStationLogoImage(this)"><span class="station-logo-origin ${/^disk/i.test(stationLogoSource) ? "disk" : "online"}" title="Źródło logo: ${this._escape(stationLogoSource || "nieznane")}">${stationLogoSourceLabel}</span></div>` : ""}</div><div class="station-name">${this._escape(station && station !== "unknown" && station !== "unavailable" ? station : "Radio internetowe")}</div>${artworkEnabled && playing ? `${image}<div class="artist">${this._escape(artist || "Nieznany wykonawca")}</div><div class="title">${this._escape(title)}</div>${album ? `<div class="album">${this._escape(album)}</div>` : ""}` : !artworkEnabled ? `${image}` : ""}`}
           ${online ? `<div class="controls">
@@ -1516,6 +1516,38 @@ class AtlasCubeRadioCard extends HTMLElement {
     this.shadowRoot.querySelector(".station-logo-slot")?.addEventListener("click", openLogoPicker);
     this.shadowRoot.querySelector(".station-name")?.addEventListener("click", openLogoPicker);
 
+    this.shadowRoot.querySelector("#logo-refresh")?.addEventListener("click", async event => {
+      event.stopPropagation();
+      const button = event.currentTarget;
+      const station = this._getStation();
+      if (!station || !this._hass?.callWS) return;
+      button.disabled = true;
+      const previousLabel = button.textContent;
+      button.textContent = "Odświeżanie…";
+      try {
+        const result = await this._hass.callWS({
+          type: "atlascube_local_logos/refresh",
+          station_key: this._stationLogoKey(station)
+        });
+        if (this._getStation() !== station || !result?.logo) return;
+        const refreshed = {
+          logo: this._logoCacheBust(result.logo),
+          originalLogo: result.source_url || this._stationLogo?.originalLogo || result.logo,
+          station, source: "disk-refresh", matchedName: this._stationLogo?.matchedName || station,
+          expiresAt: Number.MAX_SAFE_INTEGER, retryAt: null
+        };
+        this._stationLogo = refreshed;
+        this._stationLogoCache.set(this._stationLogoKey(station), refreshed);
+        button.textContent = "Logo odświeżone ✓";
+        this._render();
+      } catch (error) {
+        console.warn("AtlasCube Local Logos: odświeżenie logo nie powiodło się.", error);
+        button.textContent = "Wybierz logo ponownie, aby zapisać źródło";
+        setTimeout(() => { if (button.isConnected) button.textContent = previousLabel; }, 3500);
+      } finally {
+        if (button.isConnected) button.disabled = false;
+      }
+    });
     this.shadowRoot.querySelector("#logo-auto")?.addEventListener("click", async event => {
       event.stopPropagation();
       const station = this._getStation();
