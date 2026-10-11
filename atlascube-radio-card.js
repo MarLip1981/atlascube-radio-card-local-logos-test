@@ -349,24 +349,21 @@ class AtlasCubeRadioCard extends HTMLElement {
     return fallbackUrl ? { name: this._stationLogoQueryName(value), url: fallbackUrl } : null;
   }
   async _stationLogoRadioBrowserGet(path) {
-    const hosts = [
-      "all.api.radio-browser.info",
-      "de1.api.radio-browser.info",
-      "fi1.api.radio-browser.info"
-    ];
-    for (const host of hosts) {
-      try {
-        const response = await fetch("https://" + host + path, {
-          headers: { "Accept": "application/json" }
-        });
-        if (!response.ok) continue;
-        const data = await response.json();
-        if (Array.isArray(data)) return data;
-      } catch (_) {
-        // Próbujemy kolejnego lustra Radio Browser.
-      }
+    if (!this._hass?.callWS) {
+      console.warn("AtlasCube Local Logos: brak połączenia z Home Assistant; nie można wyszukać logo.");
+      return [];
     }
-    return [];
+    try {
+      const data = await this._hass.callWS({
+        type: "atlascube_local_logos/search",
+        provider: "radio_browser",
+        path
+      });
+      return Array.isArray(data?.results) ? data.results : [];
+    } catch (error) {
+      console.warn("AtlasCube Local Logos: wyszukiwanie Radio Browser przez integrację nie powiodło się.", error);
+      return [];
+    }
   }
 
   _stationNameTokens(value) {
@@ -505,15 +502,16 @@ class AtlasCubeRadioCard extends HTMLElement {
       // Wykonujemy niezależne zapytania równolegle, aby Commons nie blokował
       // przez kilka kolejnych opóźnień odpowiedzi.
       const responses = await Promise.all(queries.map(async query => {
-        const url = "https://commons.wikimedia.org/w/api.php?action=query&generator=search" +
-          "&gsrsearch=" + encodeURIComponent(query) +
-          "&gsrnamespace=6&gsrlimit=20&prop=imageinfo&iiprop=url&iiurlwidth=500&format=json&origin=*";
+        if (!this._hass?.callWS) return [];
         try {
-          const response = await fetch(url, { headers: { "Accept": "application/json" } });
-          if (!response.ok) return [];
-          const data = await response.json();
-          return Object.values(data?.query?.pages || {});
-        } catch (_) {
+          const data = await this._hass.callWS({
+            type: "atlascube_local_logos/search",
+            provider: "commons",
+            query
+          });
+          return Array.isArray(data?.pages) ? data.pages : [];
+        } catch (error) {
+          console.warn("AtlasCube Local Logos: zapytanie Wikimedia Commons nie powiodło się.", error);
           return [];
         }
       }));
@@ -741,7 +739,7 @@ class AtlasCubeRadioCard extends HTMLElement {
             const selectionMode = local.selection_mode || "legacy";
             // Tylko aktualny, automatycznie znaleziony wynik jest odczytywany
             // bez ponownego wyszukiwania. Ręczne i stare wpisy są fallbackiem.
-            if (selectionMode === "automatic" && local.algorithm_version === "0.1.13") {
+            if (selectionMode === "automatic" && local.algorithm_version === "0.1.14") {
               const diskResult = {
                 logo: this._logoCacheBust(local.logo),
                 originalLogo: local.source_url || local.logo,
@@ -1421,7 +1419,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         ${background}
 
         <div class="content">
-          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.13</div>
+          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.14</div>
           <div class="logo-diagnostics ${this._logoPickerOpen ? "open" : ""}">
             <div class="logo-diagnostics-heading">PORÓWNANIE WYNIKÓW — STAŁE OZNACZENIA METOD</div><div class="logo-diagnostics-source">Kliknij wynik, aby tymczasowo sprawdzić go jako logo karty.</div>
             <div class="logo-diagnostics-row">
@@ -1931,8 +1929,8 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
       </style>
 
       <div class="box">
-        <div class="badge">TEST ver0.1.13 — LOGO LOKALNE</div>
-        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.13</h2>
+        <div class="badge">TEST ver0.1.14 — LOGO LOKALNE</div>
+        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.14</h2>
         <p>Karta wykrywa AtlasCube i korzysta z natywnej dostępności MQTT przez stany jego encji.</p>
 
         <button class="auto" id="auto">🔎 Automatycznie wykryj AtlasCube</button>
@@ -2018,8 +2016,8 @@ customElements.define("atlascube-radio-card-local-disk-test", AtlasCubeRadioCard
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "atlascube-radio-card-local-disk-test",
-  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.13",
-  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.13",
+  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.14",
+  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.14",
   preview: true,
   documentationURL: "https://github.com/MarLip1981/atlascube-radio-card-local-logos-test"
 });
