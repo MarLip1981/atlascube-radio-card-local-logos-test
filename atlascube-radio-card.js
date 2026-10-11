@@ -729,6 +729,8 @@ class AtlasCubeRadioCard extends HTMLElement {
     this._stationLogo = { logo: null, loading: true, station };
     this._render();
 
+    let diskFallback = null;
+
     try {
       // Najpierw wspólna biblioteka na dysku serwera HA.
       if (this._hass?.callWS) {
@@ -737,13 +739,14 @@ class AtlasCubeRadioCard extends HTMLElement {
           if (requestId !== this._stationLogoRequestId) return;
           if (local?.logo) {
             const selectionMode = local.selection_mode || "legacy";
-            const oldAutomaticResult = selectionMode === "automatic" && local.algorithm_version !== "0.1.13";
-            if (selectionMode === "manual" || selectionMode === "legacy" || !oldAutomaticResult) {
+            // Tylko aktualny, automatycznie znaleziony wynik jest odczytywany
+            // bez ponownego wyszukiwania. Ręczne i stare wpisy są fallbackiem.
+            if (selectionMode === "automatic" && local.algorithm_version === "0.1.13") {
               const diskResult = {
                 logo: this._logoCacheBust(local.logo),
                 originalLogo: local.source_url || local.logo,
                 station,
-                source: selectionMode === "manual" ? "disk-manual" : "disk-auto",
+                source: "disk-auto",
                 selectionMode,
                 matchedName: station,
                 expiresAt: Number.MAX_SAFE_INTEGER,
@@ -754,10 +757,13 @@ class AtlasCubeRadioCard extends HTMLElement {
               this._render();
               return;
             }
-            // Stare logo dobrane automatycznie przez wcześniejszy algorytm nie blokuje
-            // nowego wyszukiwania. Ręczne nadpisania są chronione powyżej.
-            await this._hass.callWS({ type: "atlascube_local_logos/delete", station_key: cacheKey });
-            if (requestId !== this._stationLogoRequestId) return;
+            diskFallback = {
+              logo: local.logo,
+              originalLogo: local.source_url || local.logo,
+              source: selectionMode === "manual" ? "disk-manual-fallback" : "disk-legacy-fallback",
+              selectionMode,
+              matchedName: station
+            };
           }
         } catch (storageError) {
           console.warn("AtlasCube Local Logos: biblioteka HA niedostępna; szukam online.", storageError);
@@ -878,11 +884,23 @@ class AtlasCubeRadioCard extends HTMLElement {
         }
       }
 
+      if (!result?.logo && diskFallback?.logo) {
+        // Automat nie znalazł pewnego logo — dopiero teraz wykorzystujemy
+        // wcześniejszy ręczny lub starszy lokalny wpis.
+        result = {
+          logo: this._logoCacheBust(diskFallback.logo),
+          originalLogo: diskFallback.originalLogo,
+          source: diskFallback.source,
+          matchedName: diskFallback.matchedName || station,
+          fromDiskFallback: true
+        };
+      }
+
       if (requestId !== this._stationLogoRequestId) return;
       const hasLogo = Boolean(result?.logo);
       let chosenLogo = hasLogo ? result.logo : null;
       let chosenSource = result?.source || "none";
-      if (hasLogo && this._hass?.callWS) {
+      if (hasLogo && !result?.fromDiskFallback && this._hass?.callWS) {
         try {
           const saved = await this._hass.callWS({ type: "atlascube_local_logos/save", station, station_key: cacheKey, url: result.originalLogo || result.logo, selection_mode: "automatic" });
           if (requestId !== this._stationLogoRequestId) return;
