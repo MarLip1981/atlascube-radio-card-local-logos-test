@@ -1,4 +1,4 @@
-# AtlasCube Radio Card — TEST LOKALNY DYSK LOGO v0.1.15
+# AtlasCube Radio Card — TEST LOKALNY DYSK LOGO v0.1.16
 
 Niezależna wersja testowa — kandydat do przyszłej wersji oficjalnej. Nie zmienia głównej karty AtlasCube ani wcześniejszej karty testowej.
 
@@ -8,7 +8,7 @@ Niezależna wersja testowa — kandydat do przyszłej wersji oficjalnej. Nie zmi
 2. Uruchom ponownie Home Assistant.
 3. Dodaj integrację **AtlasCube Local Logos** (jeśli już jest dodana, nie dodawaj jej ponownie).
 4. Odśwież aplikację Home Assistant i otwórz edytor pulpitu.
-5. Wyszukaj kartę **AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.15**.
+5. Wyszukaj kartę **AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.16**.
 
 **Nie dodawaj ręcznie zasobu w Ustawienia → Pulpity → Zasoby.** Integracja sama udostępnia plik JS i rejestruje go. W trybie Lovelace storage dodaje moduł do zasobów Lovelace; w trybie YAML korzysta z mechanizmu dodatkowego modułu JavaScript Home Assistanta. Rozpoznawanie trybu zasobów używa właściwości `resource_mode`.
 
@@ -48,3 +48,6 @@ Osobno zachowana jest kolejność kandydatów diagnostycznych v0.7: **NAZWA-2 �
 
 
 W wersji 0.1.14 zapytania do Radio Browser i Wikimedia Commons są wykonywane przez backend integracji Home Assistant, a nie bezpośrednio przez przeglądarkę. Błędy połączenia są zapisywane w logu HA zamiast być bezgłośnie zamieniane na puste wyniki.
+
+
+W wersji 0.1.16 poprawiono listę serwerów Radio Browser: `all.api.radio-browser.info` służy do odkrywania serwerów, nie jest używany jako zwykły serwer API. Obie kopie pliku karty są utrzymywane w synchronizacji.
