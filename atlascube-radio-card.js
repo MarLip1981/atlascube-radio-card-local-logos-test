@@ -66,10 +66,6 @@ class AtlasCubeRadioCard extends HTMLElement {
         this._loadStationLogo();
         this._loadStationLogoDiagnostics(station);
       }
-    } else if (station && this._config.show_station_logo !== false &&
-        this._stationLogo && !this._stationLogo.logo && !this._stationLogo.loading &&
-        this._stationLogo.retryAt && Date.now() >= this._stationLogo.retryAt) {
-      this._loadStationLogo();
     }
     const signature = this._renderStateSignature();
     if (signature !== this._lastRenderSignature) {
@@ -917,7 +913,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         source: chosenSource,
         matchedName: result?.matchedName || result?.matchedTitle || null,
         expiresAt: hasLogo ? Number.MAX_SAFE_INTEGER : Date.now() + 180000,
-        retryAt: hasLogo ? null : Date.now() + 180000
+        retryAt: null
       };
       this._stationLogoCache.set(cacheKey, finalResult);
       this._stationLogo = finalResult;
@@ -930,7 +926,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         source: "none",
         error: error?.message || "Nieznany błąd",
         expiresAt: Date.now() + 30000,
-        retryAt: Date.now() + 30000
+        retryAt: null
       };
       this._stationLogoCache.set(cacheKey, finalResult);
       this._stationLogo = finalResult;
@@ -1419,7 +1415,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         ${background}
 
         <div class="content">
-          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.14</div>
+          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.16</div>
           <div class="logo-diagnostics ${this._logoPickerOpen ? "open" : ""}">
             <div class="logo-diagnostics-heading">PORÓWNANIE WYNIKÓW — STAŁE OZNACZENIA METOD</div><div class="logo-diagnostics-source">Kliknij wynik, aby tymczasowo sprawdzić go jako logo karty.</div>
             <div class="logo-diagnostics-row">
@@ -1929,8 +1925,8 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
       </style>
 
       <div class="box">
-        <div class="badge">TEST ver0.1.14 — LOGO LOKALNE</div>
-        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.14</h2>
+        <div class="badge">TEST ver0.1.16 — LOGO LOKALNE</div>
+        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.16</h2>
         <p>Karta wykrywa AtlasCube i korzysta z natywnej dostępności MQTT przez stany jego encji.</p>
 
         <button class="auto" id="auto">🔎 Automatycznie wykryj AtlasCube</button>
@@ -2016,8 +2012,8 @@ customElements.define("atlascube-radio-card-local-disk-test", AtlasCubeRadioCard
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "atlascube-radio-card-local-disk-test",
-  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.14",
-  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.14",
+  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.16",
+  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.16",
   preview: true,
   documentationURL: "https://github.com/MarLip1981/atlascube-radio-card-local-logos-test"
 });
