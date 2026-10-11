@@ -15,12 +15,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST, WS_SAVE, WS_REFRESH
+from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST, WS_SAVE, WS_REFRESH, WS_SEARCH
 
 _LOGGER = logging.getLogger(__name__)
 
 _CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
-_CARD_VERSION = "0.1.13"
+_CARD_VERSION = "0.1.14"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 
@@ -236,7 +236,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 "source_url": url,
                 "content_type": content_type,
                 "selection_mode": selection_mode,
-                "algorithm_version": "0.1.13",
+                "algorithm_version": "0.1.14",
             }, ensure_ascii=False), encoding="utf-8")
             connection.send_result(msg["id"], {
                 "logo": f"/local/{LOGO_DIR}/{target.name}",
@@ -244,7 +244,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 "bytes": len(body),
                 "source_url": url,
                 "selection_mode": selection_mode,
-                "algorithm_version": "0.1.13",
+                "algorithm_version": "0.1.14",
             })
         except Exception as err:
             _LOGGER.warning("Nie udało się zapisać logo stacji: %s", err)
@@ -301,7 +301,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             metadata["source_url"] = url
             metadata["content_type"] = content_type
             metadata["selection_mode"] = metadata.get("selection_mode", "legacy")
-            metadata["algorithm_version"] = "0.1.13"
+            metadata["algorithm_version"] = "0.1.14"
             metadata_path.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
             connection.send_result(msg["id"], {
                 "logo": f"/local/{LOGO_DIR}/{target.name}",
@@ -314,11 +314,75 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             _LOGGER.warning("Nie udało się odświeżyć logo stacji: %s", err)
             connection.send_error(msg["id"], "logo_refresh_failed", str(err))
 
+    @websocket_api.websocket_command({
+        vol.Required("type"): WS_SEARCH,
+        vol.Required("provider"): vol.In(["radio_browser", "commons"]),
+        vol.Optional("path"): str,
+        vol.Optional("query"): str,
+    })
+    @websocket_api.async_response
+    async def ws_search(hass, connection, msg):
+        """Query logo sources server-side instead of relying on browser cross-origin requests."""
+        session = async_get_clientsession(hass)
+        provider = msg["provider"]
+        try:
+            if provider == "radio_browser":
+                path = str(msg.get("path", ""))
+                allowed_path = re.fullmatch(
+                    r"/json/stations/(?:byurl|search)(?:\?[^#]*)?|/json/stations/bynameexact/[^/?#]+(?:\?[^#]*)?",
+                    path,
+                )
+                if not allowed_path:
+                    raise ValueError("Niedozwolona ścieżka wyszukiwania Radio Browser")
+                last_error = "brak odpowiedzi"
+                for host in ("all.api.radio-browser.info", "de1.api.radio-browser.info", "fi1.api.radio-browser.info"):
+                    try:
+                        async with session.get(
+                            "https://" + host + path,
+                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.14"},
+                            timeout=12,
+                        ) as response:
+                            if response.status != 200:
+                                last_error = f"{host}: HTTP {response.status}"
+                                continue
+                            data = await response.json(content_type=None)
+                            if isinstance(data, list):
+                                connection.send_result(msg["id"], {"results": data, "provider": provider, "host": host})
+                                return
+                            last_error = f"{host}: odpowiedź nie jest listą JSON"
+                    except Exception as err:  # noqa: BLE001
+                        last_error = f"{host}: {err}"
+                raise ValueError("Radio Browser nie zwrócił wyników (" + last_error + ")")
+
+            query = str(msg.get("query", "")).strip()
+            if not query or len(query) > 200:
+                raise ValueError("Nieprawidłowe zapytanie Wikimedia Commons")
+            params = {
+                "action": "query", "generator": "search", "gsrsearch": query,
+                "gsrnamespace": "6", "gsrlimit": "20", "prop": "imageinfo",
+                "iiprop": "url", "iiurlwidth": "500", "format": "json", "origin": "*",
+            }
+            async with session.get(
+                "https://commons.wikimedia.org/w/api.php",
+                params=params,
+                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.14 (Home Assistant integration)"},
+                timeout=15,
+            ) as response:
+                if response.status != 200:
+                    raise ValueError(f"Wikimedia Commons zwróciło HTTP {response.status}")
+                data = await response.json(content_type=None)
+            pages = list((data.get("query", {}).get("pages") or {}).values())
+            connection.send_result(msg["id"], {"pages": pages, "provider": provider, "count": len(pages)})
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Wyszukiwanie logo (%s) nie powiodło się: %s", provider, err)
+            connection.send_error(msg["id"], "logo_search_failed", str(err))
+
     websocket_api.async_register_command(hass, ws_get)
     websocket_api.async_register_command(hass, ws_list)
     websocket_api.async_register_command(hass, ws_save)
     websocket_api.async_register_command(hass, ws_delete)
     websocket_api.async_register_command(hass, ws_refresh)
+    websocket_api.async_register_command(hass, ws_search)
     return True
 
 
