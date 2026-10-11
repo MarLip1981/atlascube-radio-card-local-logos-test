@@ -1523,11 +1523,14 @@ class AtlasCubeRadioCard extends HTMLElement {
       const selectCandidate = () => {
         const index = Number(item.dataset.logoIndex);
         const candidate = this._stationLogoDiagnostics[index];
-        if (!candidate?.logo) return;
-        // Try the HTTPS URL first; image onerror will keep the diagnostic tile
-        // visible as "brak obrazu" if the host doesn't serve that resource.
+        const candidateImage = item.querySelector(".logo-diagnostic-image");
+        // Nie pozwalamy wybrać kafelka, którego logo nie udało się wczytać
+        // ani bezpośrednio, ani przez pośredniki. Jeśli proxy zadziałało,
+        // można użyć jego bieżącego adresu jako awaryjnego źródła zapisu.
+        if (!candidate?.logo || candidateImage?.classList.contains("failed")) return;
+        const displayedLogo = candidateImage?.currentSrc || candidate.logo;
         const selected = {
-          logo: candidate.logo,
+          logo: displayedLogo,
           originalLogo: candidate.originalLogo || candidate.logo,
           station: this._getStation(),
           source: "test-manual-" + candidate.number,
@@ -1541,7 +1544,29 @@ class AtlasCubeRadioCard extends HTMLElement {
         this._stationLogoCache.set(this._stationLogoKey(selected.station), selected);
         this._render();
         if (this._hass?.callWS) {
-          this._hass.callWS({ type: "atlascube_local_logos/save", station: selected.station, station_key: this._stationLogoKey(selected.station), url: candidate.originalLogo || candidate.logo }).then(saved => {
+          const saveManual = async () => {
+            try {
+              return await this._hass.callWS({
+                type: "atlascube_local_logos/save",
+                station: selected.station,
+                station_key: this._stationLogoKey(selected.station),
+                url: candidate.originalLogo || candidate.logo
+              });
+            } catch (firstError) {
+              // Część serwerów blokuje favicon bezpośrednio, mimo że obraz
+              // w kafelku działa przez proxy. Spróbujmy wtedy zapisać działający URL.
+              if (displayedLogo && displayedLogo !== (candidate.originalLogo || candidate.logo)) {
+                return await this._hass.callWS({
+                  type: "atlascube_local_logos/save",
+                  station: selected.station,
+                  station_key: this._stationLogoKey(selected.station),
+                  url: displayedLogo
+                });
+              }
+              throw firstError;
+            }
+          };
+          saveManual().then(saved => {
             if (requestId !== this._stationLogoRequestId || this._getStation() !== selected.station) return;
             if (saved?.logo) {
               const persisted = { ...selected, logo: this._logoCacheBust(saved.logo), originalLogo: saved.logo, source: "disk-manual", expiresAt: Number.MAX_SAFE_INTEGER, retryAt: null };
