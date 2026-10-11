@@ -236,7 +236,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 "source_url": url,
                 "content_type": content_type,
                 "selection_mode": selection_mode,
-                "algorithm_version": "0.1.15",
+                "algorithm_version": "0.1.14",
             }, ensure_ascii=False), encoding="utf-8")
             connection.send_result(msg["id"], {
                 "logo": f"/local/{LOGO_DIR}/{target.name}",
@@ -244,7 +244,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 "bytes": len(body),
                 "source_url": url,
                 "selection_mode": selection_mode,
-                "algorithm_version": "0.1.15",
+                "algorithm_version": "0.1.14",
             })
         except Exception as err:
             _LOGGER.warning("Nie udało się zapisać logo stacji: %s", err)
@@ -301,7 +301,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             metadata["source_url"] = url
             metadata["content_type"] = content_type
             metadata["selection_mode"] = metadata.get("selection_mode", "legacy")
-            metadata["algorithm_version"] = "0.1.15"
+            metadata["algorithm_version"] = "0.1.14"
             metadata_path.write_text(json.dumps(metadata, ensure_ascii=False), encoding="utf-8")
             connection.send_result(msg["id"], {
                 "logo": f"/local/{LOGO_DIR}/{target.name}",
