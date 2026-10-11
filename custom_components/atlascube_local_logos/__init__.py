@@ -12,13 +12,14 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST, WS_SAVE
 
 _LOGGER = logging.getLogger(__name__)
 
 _CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
-_CARD_VERSION = "0.1.3"
+_CARD_VERSION = "0.1.4"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 
@@ -38,7 +39,8 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
             _LOGGER.warning("Nie udało się zarejestrować pliku karty AtlasCube: %s", err)
             return
 
-    lovelace = hass.data.get("lovelace")
+    # Use Home Assistant's typed data key rather than a string literal.
+    lovelace = hass.data.get(LOVELACE_DATA)
     if lovelace is None:
         _LOGGER.warning(
             "Karta AtlasCube jest dostępna pod %s, ale Lovelace nie udostępnił rejestru zasobów.",
