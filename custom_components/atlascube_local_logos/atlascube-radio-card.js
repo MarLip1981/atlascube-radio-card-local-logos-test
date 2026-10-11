@@ -1242,7 +1242,8 @@ class AtlasCubeRadioCard extends HTMLElement {
           background:rgba(0,0,0,.10);
         }
         .logo-diagnostics.open { display:block; }
-        .logo-picker-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }\n        #logo-auto, #logo-refresh { margin-top:8px; border:1px solid var(--divider-color); border-radius:8px; padding:7px 10px; background:var(--card-background-color); color:var(--primary-text-color); cursor:pointer; }
+        .logo-picker-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+        #logo-auto, #logo-refresh { margin-top:8px; border:1px solid var(--divider-color); border-radius:8px; padding:7px 10px; background:var(--card-background-color); color:var(--primary-text-color); cursor:pointer; }
         .logo-diagnostic-item { cursor:pointer; }
         .station-logo, .station-identity, .station-logo-slot, .station-name { cursor:pointer; }
         .logo-diagnostic-item.selected { outline:2px solid var(--primary-color, #03a9f4); outline-offset:2px; border-radius:8px; }
@@ -1973,8 +1974,8 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
       </style>
 
       <div class="box">
-        <div class="badge">TEST ver0.1.6 — LOGO LOKALNE</div>
-        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.6</h2>
+        <div class="badge">TEST ver0.1.11 — LOGO LOKALNE</div>
+        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.11</h2>
         <p>Karta wykrywa AtlasCube i korzysta z natywnej dostępności MQTT przez stany jego encji.</p>
 
         <button class="auto" id="auto">🔎 Automatycznie wykryj AtlasCube</button>
@@ -2060,8 +2061,8 @@ customElements.define("atlascube-radio-card-local-disk-test", AtlasCubeRadioCard
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "atlascube-radio-card-local-disk-test",
-  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.6",
-  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.6",
+  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.11",
+  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.11",
   preview: true,
   documentationURL: "https://github.com/MarLip1981/atlascube-radio-card-local-logos-test"
 });
