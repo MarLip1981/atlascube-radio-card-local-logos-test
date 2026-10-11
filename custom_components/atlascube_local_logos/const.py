@@ -5,3 +5,4 @@ MAX_IMAGE_BYTES = 2 * 1024 * 1024
 WS_GET = f"{DOMAIN}/get"
 WS_SAVE = f"{DOMAIN}/save"
 WS_LIST = f"{DOMAIN}/list"
+WS_DELETE = f"{DOMAIN}/delete"
