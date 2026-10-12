@@ -493,30 +493,29 @@ class AtlasCubeRadioCard extends HTMLElement {
     try {
       const searchNames = this._stationLogoSearchNames(station);
       const wantedKey = this._stationLogoKey(station);
-      const queries = [...new Set(searchNames.flatMap(name => [name, name + " logo"]))].slice(0, 8);
+      // Commons limits automated requests. Use at most two focused queries,
+      // sequentially, rather than firing up to eight requests in parallel.
+      const queries = [...new Set(searchNames.slice(0, 2).flatMap(name => [name + " logo", name]))].slice(0, 2);
+      const allPages = new Map();
 
-      // Wykonujemy niezależne zapytania równolegle, aby Commons nie blokował
-      // przez kilka kolejnych opóźnień odpowiedzi.
-      const responses = await Promise.all(queries.map(async query => {
-        if (!this._hass?.callWS) return [];
+      for (const query of queries) {
+        if (!this._hass?.callWS) break;
         try {
           const data = await this._hass.callWS({
             type: "atlascube_local_logos/search",
             provider: "commons",
             query
           });
-          return Array.isArray(data?.pages) ? data.pages : [];
+          if (requestId !== this._stationLogoRequestId) return null;
+          for (const page of (Array.isArray(data?.pages) ? data.pages : [])) {
+            if (page?.pageid != null) allPages.set(String(page.pageid), page);
+          }
         } catch (error) {
           console.warn("AtlasCube Local Logos: zapytanie Wikimedia Commons nie powiodło się.", error);
-          return [];
+          break;
         }
-      }));
-      if (requestId !== this._stationLogoRequestId) return null;
-
-      const allPages = new Map();
-      for (const page of responses.flat()) {
-        if (page?.pageid != null) allPages.set(String(page.pageid), page);
       }
+      if (requestId !== this._stationLogoRequestId) return null;
 
       const wantedAliases = searchNames.map(name => ({
         name,
@@ -1415,7 +1414,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         ${background}
 
         <div class="content">
-          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.16</div>
+          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.17</div>
           <div class="logo-diagnostics ${this._logoPickerOpen ? "open" : ""}">
             <div class="logo-diagnostics-heading">PORÓWNANIE WYNIKÓW — STAŁE OZNACZENIA METOD</div><div class="logo-diagnostics-source">Kliknij wynik, aby tymczasowo sprawdzić go jako logo karty.</div>
             <div class="logo-diagnostics-row">
@@ -1925,8 +1924,8 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
       </style>
 
       <div class="box">
-        <div class="badge">TEST ver0.1.16 — LOGO LOKALNE</div>
-        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.16</h2>
+        <div class="badge">TEST ver0.1.17 — LOGO LOKALNE</div>
+        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.17</h2>
         <p>Karta wykrywa AtlasCube i korzysta z natywnej dostępności MQTT przez stany jego encji.</p>
 
         <button class="auto" id="auto">🔎 Automatycznie wykryj AtlasCube</button>
@@ -2012,8 +2011,8 @@ customElements.define("atlascube-radio-card-local-disk-test", AtlasCubeRadioCard
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "atlascube-radio-card-local-disk-test",
-  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.16",
-  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.16",
+  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.17",
+  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.17",
   preview: true,
   documentationURL: "https://github.com/MarLip1981/atlascube-radio-card-local-logos-test"
 });
