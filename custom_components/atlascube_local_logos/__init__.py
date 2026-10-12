@@ -21,7 +21,7 @@ from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST
 _LOGGER = logging.getLogger(__name__)
 
 _CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
-_CARD_VERSION = "0.1.17"
+_CARD_VERSION = "0.1.18"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 
@@ -342,7 +342,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                     try:
                         async with session.get(
                             "https://" + host + path,
-                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.17"},
+                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.18"},
                             timeout=12,
                         ) as response:
                             if response.status != 200:
@@ -381,7 +381,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             async with session.get(
                 "https://commons.wikimedia.org/w/api.php",
                 params=params,
-                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.17 (https://github.com/MarLip1981/atlascube-radio-card-local-logos-test)"},
+                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.18 (https://github.com/MarLip1981/atlascube-radio-card-local-logos-test)"},
                 timeout=15,
             ) as response:
                 if response.status == 429:
