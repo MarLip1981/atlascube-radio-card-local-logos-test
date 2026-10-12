@@ -63,8 +63,9 @@ class AtlasCubeRadioCard extends HTMLElement {
     if (station !== this._lastStation) {
       this._lastStation = station;
       if (this._config.show_station_logo !== false) {
+        // Automatyczne wyszukiwanie logo jest jedyną ścieżką działającą przy
+        // zmianie stacji. Diagnostyka uruchamia się dopiero po otwarciu panelu.
         this._loadStationLogo();
-        this._loadStationLogoDiagnostics(station);
       }
     }
     const signature = this._renderStateSignature();
@@ -622,13 +623,14 @@ class AtlasCubeRadioCard extends HTMLElement {
       }
 
       const searchNames = this._stationLogoSearchNames(station);
-      const searchResponses = await Promise.all(searchNames.slice(0, 2).map(name =>
-        this._stationLogoRadioBrowserGet(
+      const searchResponses = [];
+      for (const name of searchNames.slice(0, 2)) {
+        searchResponses.push(await this._stationLogoRadioBrowserGet(
           "/json/stations/search?name=" + encodeURIComponent(name) +
           "&limit=100&order=clickcount&reverse=true"
-        )
-      ));
-      if (requestId !== this._stationLogoDiagnosticsRequestId) return;
+        ));
+        if (requestId !== this._stationLogoDiagnosticsRequestId) return;
+      }
       addCandidates(searchResponses.flat().sort((a, b) =>
         (Number(b.clickcount) || 0) - (Number(a.clickcount) || 0)), "3 · SZUKAJ", 2);
 
@@ -835,33 +837,30 @@ class AtlasCubeRadioCard extends HTMLElement {
       // Ostatnia próba w Radio Browser: szersze wyszukiwanie, ale tylko
       // kandydaci o zgodnej, kanonicznej nazwie. Bez dopasowań typu Eska Rock TV.
       if (!result?.logo) {
-        const responses = await Promise.all(searchNames.map(queryName =>
-          this._stationLogoRadioBrowserGet(
+        // Warianty nazw odpytujemy kolejno. Gdy pierwsze zapytanie da
+        // wiarygodny wynik, nie wysyłamy pozostałych zapytań do serwera.
+        for (const queryName of searchNames) {
+          const items = await this._stationLogoRadioBrowserGet(
             "/json/stations/search?name=" + encodeURIComponent(queryName) +
             "&limit=100&order=clickcount&reverse=true"
-          )
-        ));
-        if (requestId !== this._stationLogoRequestId) return;
+          );
+          if (requestId !== this._stationLogoRequestId) return;
 
-        const unique = new Map();
-        for (const item of responses.flat()) {
-          if (!item?.name || !item?.favicon) continue;
-          if (this._stationLogoKey(item.name) !== wantedKey) continue;
-          const id = this._normalize(item.name) + "|" + String(item.favicon);
-          if (!unique.has(id)) unique.set(id, item);
-        }
+          const candidates = items
+            .filter(item => item?.name && item?.favicon)
+            .filter(item => this._stationLogoKey(item.name) === wantedKey)
+            .sort((a, b) => (Number(b.clickcount) || 0) - (Number(a.clickcount) || 0));
 
-        const candidates = [...unique.values()]
-          .sort((a, b) => (Number(b.clickcount) || 0) - (Number(a.clickcount) || 0));
-
-        if (candidates[0]) {
-          const item = candidates[0];
-          result = {
-            logo: String(item.favicon).replace(/^http:/i, "https:"),
-            originalLogo: String(item.favicon),
-            source: "radio-browser-name-verified",
-            matchedName: item.name
-          };
+          if (candidates[0]) {
+            const item = candidates[0];
+            result = {
+              logo: String(item.favicon).replace(/^http:/i, "https:"),
+              originalLogo: String(item.favicon),
+              source: "radio-browser-name-verified",
+              matchedName: item.name
+            };
+            break;
+          }
         }
       }
 
@@ -1414,7 +1413,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         ${background}
 
         <div class="content">
-          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.17</div>
+          <div class="test-version-banner">TEST INTEGRACJI · LOKALNE LOGO NA DYSKU HA · v0.1.18</div>
           <div class="logo-diagnostics ${this._logoPickerOpen ? "open" : ""}">
             <div class="logo-diagnostics-heading">PORÓWNANIE WYNIKÓW — STAŁE OZNACZENIA METOD</div><div class="logo-diagnostics-source">Kliknij wynik, aby tymczasowo sprawdzić go jako logo karty.</div>
             <div class="logo-diagnostics-row">
@@ -1460,7 +1459,16 @@ class AtlasCubeRadioCard extends HTMLElement {
     const openLogoPicker = event => {
       event.stopPropagation();
       this._logoPickerOpen = !this._logoPickerOpen;
+      const stationForDiagnostics = this._getStation();
       this._render();
+      // Kosztowne porównanie źródeł tylko na wyraźne żądanie użytkownika.
+      if (
+        this._logoPickerOpen &&
+        stationForDiagnostics &&
+        this._stationLogoDiagnosticsReadyFor !== stationForDiagnostics
+      ) {
+        this._loadStationLogoDiagnostics(stationForDiagnostics);
+      }
     };
     this.shadowRoot.querySelector(".station-logo-slot")?.addEventListener("click", openLogoPicker);
     this.shadowRoot.querySelector(".station-name")?.addEventListener("click", openLogoPicker);
@@ -1924,8 +1932,8 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
       </style>
 
       <div class="box">
-        <div class="badge">TEST ver0.1.17 — LOGO LOKALNE</div>
-        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.17</h2>
+        <div class="badge">TEST ver0.1.18 — LOGO LOKALNE</div>
+        <h2>AtlasCube Radio — TEST LOGO LOKALNE ver0.1.18</h2>
         <p>Karta wykrywa AtlasCube i korzysta z natywnej dostępności MQTT przez stany jego encji.</p>
 
         <button class="auto" id="auto">🔎 Automatycznie wykryj AtlasCube</button>
@@ -2011,8 +2019,8 @@ customElements.define("atlascube-radio-card-local-disk-test", AtlasCubeRadioCard
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "atlascube-radio-card-local-disk-test",
-  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.17",
-  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.17",
+  name: "AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.18",
+  description: "TEST: osobny typ karty, lokalna biblioteka logo na dysku HA v0.1.18",
   preview: true,
   documentationURL: "https://github.com/MarLip1981/atlascube-radio-card-local-logos-test"
 });
