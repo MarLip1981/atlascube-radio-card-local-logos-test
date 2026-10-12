@@ -1,6 +1,10 @@
-# AtlasCube Radio Card — TEST LOKALNY DYSK LOGO v0.1.17
+# AtlasCube Radio Card — TEST LOKALNY DYSK LOGO v0.1.18
 
 Niezależna wersja testowa — kandydat do przyszłej wersji oficjalnej. Nie zmienia głównej karty AtlasCube ani wcześniejszej karty testowej.
+
+## Ograniczenie zapytań w wersji 0.1.18
+
+Automatyczne wyszukiwanie uruchamia się tylko przy zmianie stacji. Porównanie diagnostyczne źródeł jest uruchamiane dopiero po ręcznym otwarciu panelu logo. Warianty nazw w wyszukiwaniu automatycznym i diagnostycznym są sprawdzane kolejno, a nie równolegle.
 
 ## Instalacja — bez ręcznego dodawania zasobu
 
@@ -8,7 +12,7 @@ Niezależna wersja testowa — kandydat do przyszłej wersji oficjalnej. Nie zmi
 2. Uruchom ponownie Home Assistant.
 3. Dodaj integrację **AtlasCube Local Logos** (jeśli już jest dodana, nie dodawaj jej ponownie).
 4. Odśwież aplikację Home Assistant i otwórz edytor pulpitu.
-5. Wyszukaj kartę **AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.17**.
+5. Wyszukaj kartę **AtlasCube Radio Card — TEST LOKALNY DYSK ver0.1.18**.
 
 **Nie dodawaj ręcznie zasobu w Ustawienia → Pulpity → Zasoby.** Integracja sama udostępnia plik JS i rejestruje go. W trybie Lovelace storage dodaje moduł do zasobów Lovelace; w trybie YAML korzysta z mechanizmu dodatkowego modułu JavaScript Home Assistanta. Rozpoznawanie trybu zasobów używa właściwości `resource_mode`.
 
@@ -50,4 +54,4 @@ Osobno zachowana jest kolejność kandydatów diagnostycznych v0.7: **NAZWA-2 �
 W wersji 0.1.14 zapytania do Radio Browser i Wikimedia Commons są wykonywane przez backend integracji Home Assistant, a nie bezpośrednio przez przeglądarkę. Błędy połączenia są zapisywane w logu HA zamiast być bezgłośnie zamieniane na puste wyniki.
 
 
-W wersji 0.1.17 usunięto niepotwierdzony serwer `fi1`, a błędy wszystkich sprawdzonych luster Radio Browser są zachowywane w jednym komunikacie diagnostycznym. Po odpowiedzi HTTP 429 Wikimedia Commons integracja respektuje `Retry-After` (lub stosuje 15-minutową przerwę, jeśli nagłówka brak), a karta wykonuje najwyżej dwa zapytania Commons sekwencyjnie zamiast ośmiu równoległych. Obie kopie pliku karty są utrzymywane w synchronizacji.
+W wersji 0.1.18 usunięto niepotwierdzony serwer `fi1`, a błędy wszystkich sprawdzonych luster Radio Browser są zachowywane w jednym komunikacie diagnostycznym. Po odpowiedzi HTTP 429 Wikimedia Commons integracja respektuje `Retry-After` (lub stosuje 15-minutową przerwę, jeśli nagłówka brak), a karta wykonuje najwyżej dwa zapytania Commons sekwencyjnie zamiast ośmiu równoległych. Obie kopie pliku karty są utrzymywane w synchronizacji.
