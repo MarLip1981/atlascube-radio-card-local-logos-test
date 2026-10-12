@@ -4,6 +4,7 @@ import ipaddress
 import json
 import logging
 import re
+import time
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
@@ -20,7 +21,7 @@ from .const import DOMAIN, LOGO_DIR, MAX_IMAGE_BYTES, WS_DELETE, WS_GET, WS_LIST
 _LOGGER = logging.getLogger(__name__)
 
 _CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
-_CARD_VERSION = "0.1.16"
+_CARD_VERSION = "0.1.17"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 
@@ -334,40 +335,68 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 )
                 if not allowed_path:
                     raise ValueError("Niedozwolona ścieżka wyszukiwania Radio Browser")
-                last_error = "brak odpowiedzi"
-                for host in ("de1.api.radio-browser.info", "nl1.api.radio-browser.info", "fi1.api.radio-browser.info"):
+                host_errors = []
+                # Use only mirrors listed by Radio Browser's own server directory.
+                # Keep every failure: reporting only the last mirror hid the real cause.
+                for host in ("de1.api.radio-browser.info", "nl1.api.radio-browser.info"):
                     try:
                         async with session.get(
                             "https://" + host + path,
-                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.16"},
+                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.17"},
                             timeout=12,
                         ) as response:
                             if response.status != 200:
-                                last_error = f"{host}: HTTP {response.status}"
+                                host_errors.append(f"{host}: HTTP {response.status}")
                                 continue
                             data = await response.json(content_type=None)
                             if isinstance(data, list):
                                 connection.send_result(msg["id"], {"results": data, "provider": provider, "host": host})
                                 return
-                            last_error = f"{host}: odpowiedź nie jest listą JSON"
+                            host_errors.append(f"{host}: odpowiedź nie jest listą JSON")
                     except Exception as err:  # noqa: BLE001
-                        last_error = f"{host}: {err}"
-                raise ValueError("Radio Browser nie zwrócił wyników (" + last_error + ")")
+                        host_errors.append(f"{host}: {err}")
+                raise ValueError("Radio Browser nie zwrócił wyników (" + "; ".join(host_errors) + ")")
 
             query = str(msg.get("query", "")).strip()
             if not query or len(query) > 200:
                 raise ValueError("Nieprawidłowe zapytanie Wikimedia Commons")
+
+            # Commons started returning HTTP 429. Respect Retry-After and stop
+            # repeated card requests from hammering the API during its cooldown.
+            state = hass.data.setdefault(DOMAIN, {})
+            now = time.monotonic()
+            cooldown_until = float(state.get("commons_cooldown_until", 0))
+            if cooldown_until > now:
+                connection.send_result(msg["id"], {
+                    "pages": [], "provider": provider, "count": 0,
+                    "rate_limited": True, "retry_after": int(cooldown_until - now) + 1,
+                })
+                return
+
             params = {
                 "action": "query", "generator": "search", "gsrsearch": query,
                 "gsrnamespace": "6", "gsrlimit": "20", "prop": "imageinfo",
-                "iiprop": "url", "iiurlwidth": "500", "format": "json", "origin": "*",
+                "iiprop": "url", "iiurlwidth": "500", "format": "json",
             }
             async with session.get(
                 "https://commons.wikimedia.org/w/api.php",
                 params=params,
-                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.16 (Home Assistant integration)"},
+                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos/0.1.17 (https://github.com/MarLip1981/atlascube-radio-card-local-logos-test)"},
                 timeout=15,
             ) as response:
+                if response.status == 429:
+                    retry_header = response.headers.get("Retry-After", "")
+                    try:
+                        delay = max(60, int(retry_header))
+                    except (TypeError, ValueError):
+                        delay = 900
+                    state["commons_cooldown_until"] = time.monotonic() + delay
+                    _LOGGER.warning("Wikimedia Commons zwróciło HTTP 429; wstrzymuję kolejne zapytania na %s s.", delay)
+                    connection.send_result(msg["id"], {
+                        "pages": [], "provider": provider, "count": 0,
+                        "rate_limited": True, "retry_after": delay,
+                    })
+                    return
                 if response.status != 200:
                     raise ValueError(f"Wikimedia Commons zwróciło HTTP {response.status}")
                 data = await response.json(content_type=None)
