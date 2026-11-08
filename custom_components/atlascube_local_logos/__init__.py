@@ -30,7 +30,7 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _CARD_URL = "/atlascube-local-logos/atlascube-radio-card.js"
-_CARD_VERSION = "0.5.1"
+_CARD_VERSION = "0.5.2"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 
