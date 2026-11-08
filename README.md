@@ -1,4 +1,4 @@
-# AtlasCube Radio Card — TEST — WERSJA 0.5.2
+# AtlasCube Radio Card — TEST — WERSJA 0.5.3
 
 Niezależna wersja testowa — kandydat do przyszłej wersji oficjalnej. Nie zmienia głównej karty AtlasCube ani wcześniejszej karty testowej.
 
@@ -6,9 +6,9 @@ Niezależna wersja testowa — kandydat do przyszłej wersji oficjalnej. Nie zmi
 
 1. W HACS zaktualizuj/pobierz repozytorium `MarLip1981/atlascube-radio-card-local-logos-test` jako **Custom repository → Integration**.
 2. Uruchom ponownie Home Assistant.
-3. Dodaj integrację **AtlasCube Local Logos** (jeśli już jest dodana, nie dodawaj jej ponownie).
+3. Dodaj integrację **AtlasCube Local Logos TEST** (jeśli już jest dodana, nie dodawaj jej ponownie).
 4. Odśwież aplikację Home Assistant i otwórz edytor pulpitu.
-5. Wyszukaj kartę **AtlasCube Radio Card — TEST 0.5.2**.
+5. Wyszukaj kartę **AtlasCube Radio Card — TEST 0.5.3**.
 
 **Nie dodawaj ręcznie zasobu w Ustawienia → Pulpity → Zasoby.** Integracja sama udostępnia plik JS i rejestruje go. W trybie Lovelace storage dodaje moduł do zasobów Lovelace; w trybie YAML korzysta z mechanizmu dodatkowego modułu JavaScript Home Assistanta. Rozpoznawanie trybu zasobów używa właściwości `resource_mode`.
 
@@ -16,7 +16,7 @@ Jeśli karta nadal nie pojawia się w selektorze, potrzebny będzie wpis z dzien
 
 ## Biblioteka logo
 
-Pliki logo są przechowywane na serwerze HA w `/config/www/atlascube-radio-station-logos/` i udostępniane pod `/local/atlascube-radio-station-logos/<plik>`.
+Pliki logo są przechowywane na serwerze HA w `/config/www/atlascube-radio-station-logos-test/` i udostępniane pod `/local/atlascube-radio-station-logos-test/<plik>`.
 
 Karta najpierw sprawdza lokalną bibliotekę. Jeśli logo nie istnieje, wybiera wynik według ustalonej kolejności diagnostycznej i zapisuje go na dysku; jeśli diagnostyka nie zwróci kandydatów, używa wyszukiwania zapasowego. Ręczny wybór zapisuje wybrane logo lokalnie; przywrócenie automatycznego wyboru usuwa lokalne nadpisanie i uruchamia ponowne wyszukiwanie. Lokalne adresy obrazów otrzymują znacznik wersji, aby przeglądarka nie pokazywała starego pliku z cache.
 
@@ -40,7 +40,7 @@ Osobno zachowana jest kolejność kandydatów diagnostycznych v0.7: **NAZWA-2 �
 
 ## Warstwa lokalnego dysku
 
-- Po automatycznym znalezieniu logo integracja zapisuje obraz i źródłowy URL w `/config/www/atlascube-radio-station-logos/`.
+- Po automatycznym znalezieniu logo integracja zapisuje obraz i źródłowy URL w `/config/www/atlascube-radio-station-logos-test/`.
 - Przy kolejnych odczytach używa zapisanej kopii zamiast pobierać logo za każdym razem.
 - Ręczny wybór pozostaje opcją dodatkową, a „Przywróć wybór automatyczny” ponownie uruchamia algorytm v0.7.
 - „Odśwież zapisane logo” pobiera obraz ponownie z tego samego źródła.
@@ -51,3 +51,8 @@ W wersji 0.1.14 zapytania do Radio Browser i Wikimedia Commons są wykonywane pr
 
 
 W wersji 0.1.17 usunięto niepotwierdzony serwer `fi1`, a błędy wszystkich sprawdzonych luster Radio Browser są zachowywane w jednym komunikacie diagnostycznym. Po odpowiedzi HTTP 429 Wikimedia Commons integracja respektuje `Retry-After` (lub stosuje 15-minutową przerwę, jeśli nagłówka brak), a karta wykonuje najwyżej dwa zapytania Commons sekwencyjnie zamiast ośmiu równoległych. Obie kopie pliku karty są utrzymywane w synchronizacji.
+
+
+## Izolacja testu 0.5.3
+
+Ta wersja używa osobnej domeny integracji `atlascube_local_logos_test`, osobnego adresu zasobu JS, osobnego typu karty `atlascube-radio-card-test`, osobnego kanału WebSocket oraz osobnego sensora `sensor.atlascube_radio_cover_url_test`. Nie nadpisuje integracji ani karty produkcyjnej 0.5.0. Okładki są zapisywane w `/config/www/atlascube-radio-covers-test/` i udostępniane pod `/local/atlascube-radio-covers-test/...`.
