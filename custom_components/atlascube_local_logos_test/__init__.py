@@ -126,6 +126,10 @@ def _public_url(value: str) -> str:
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Register websocket commands and prepare the local folder."""
+    state = hass.data.setdefault(DOMAIN, {})
+    if state.get("websocket_registered"):
+        return True
+
     folder = Path(hass.config.path("www", LOGO_DIR))
     folder.mkdir(parents=True, exist_ok=True)
     cover_folder = Path(hass.config.path("www", COVER_DIR))
@@ -495,11 +499,16 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     websocket_api.async_register_command(hass, ws_refresh)
     websocket_api.async_register_command(hass, ws_search)
     websocket_api.async_register_command(hass, ws_artwork_set)
+    state["websocket_registered"] = True
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Ensure storage directory exists when integration is added."""
+    """Ensure storage and WebSocket commands exist when integration is added."""
+    state = hass.data.setdefault(DOMAIN, {})
+    if not state.get("websocket_registered"):
+        await async_setup(hass, {})
+
     folder = Path(hass.config.path("www", LOGO_DIR))
     folder.mkdir(parents=True, exist_ok=True)
     state = hass.data.setdefault(DOMAIN, {})
