@@ -1257,9 +1257,10 @@ class AtlasCubeRadioCard extends HTMLElement {
         .offline-title { font-size:17px; font-weight:700; }
         .offline-text { font-size:13px; opacity:.65; margin-top:4px; }
 
-        .topbar { width:100%; min-height:90px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:6px; box-sizing:border-box; padding-top:2px; }
+        .topbar { position:relative; width:100%; min-height:90px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:6px; box-sizing:border-box; padding-top:2px; }
         .brand { display:flex; align-items:center; justify-content:flex-start; gap:7px; margin:0; font-size:16px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; opacity:.94; flex:0 1 auto; min-width:0; }
         .brand-icon { font-size:22px; line-height:1; }
+        .test-badge { position:absolute; left:0; top:34px; z-index:3; padding:3px 7px; border:1px solid rgba(255,190,80,.72); border-radius:6px; background:rgba(88,48,0,.88); color:#ffe0a3; font-size:9px; line-height:1.1; font-weight:900; letter-spacing:.09em; box-shadow:0 1px 5px rgba(0,0,0,.28); pointer-events:none; }
         .brand-cube { opacity:.58; }
         .brand.web { cursor:pointer; }
         .brand.web:active { transform:scale(.995); }
@@ -1455,7 +1456,7 @@ class AtlasCubeRadioCard extends HTMLElement {
             </div>
             <div class="logo-picker-actions"><button id="logo-refresh" type="button" title="Pobierz ponownie logo z tego samego adresu źródłowego">↻ Odśwież zapisane logo</button><button id="logo-auto" type="button">Przywróć wybór automatyczny</button></div>
           </div>
-          ${!online ? `<div class="topbar"><div class="brand"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div></div><div class="offline-icon"><ha-icon icon="mdi:wifi-off"></ha-icon></div><div class="offline-title">Radio AtlasCube</div><div class="offline-text">niedostępne w sieci</div>` : `<div class="topbar"><div class="brand ${webUrl ? "web" : ""}" id="brand" title="${webUrl ? "Otwórz panel AtlasCube" : ""}"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div>${stationLogoEnabled && stationLogo ? `<div class="station-logo-slot"><img class="station-logo" src="${this._escape(stationLogo)}" data-original-src="${this._escape(this._stationLogo?.originalLogo || stationLogo)}" alt="" aria-hidden="true" onerror="this.getRootNode().host._retryStationLogoImage(this)"><span class="station-logo-origin ${/^disk/i.test(stationLogoSource) ? "disk" : "online"}" title="Źródło logo: ${this._escape(stationLogoSource || "nieznane")}">${this._config.show_logo_source !== false ? stationLogoSourceLabel : ""}</span></div>` : ""}</div><div class="station-name">${this._escape(station && station !== "unknown" && station !== "unavailable" ? station : "Radio internetowe")}</div>${artworkEnabled && playing ? `${image}<div class="artist">${this._escape(artist || "Nieznany wykonawca")}</div><div class="title">${this._escape(title)}</div>${album ? `<div class="album">${this._escape(album)}</div>` : ""}` : !artworkEnabled ? `${image}` : ""}`}
+          ${!online ? `<div class="topbar"><div class="brand"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div><span class="test-badge">WERSJA TESTOWA · 0.5.2</span></div><div class="offline-icon"><ha-icon icon="mdi:wifi-off"></ha-icon></div><div class="offline-title">Radio AtlasCube</div><div class="offline-text">niedostępne w sieci</div>` : `<div class="topbar"><div class="brand ${webUrl ? "web" : ""}" id="brand" title="${webUrl ? "Otwórz panel AtlasCube" : ""}"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div><span class="test-badge">WERSJA TESTOWA · 0.5.2</span>${stationLogoEnabled && stationLogo ? `<div class="station-logo-slot"><img class="station-logo" src="${this._escape(stationLogo)}" data-original-src="${this._escape(this._stationLogo?.originalLogo || stationLogo)}" alt="" aria-hidden="true" onerror="this.getRootNode().host._retryStationLogoImage(this)"><span class="station-logo-origin ${/^disk/i.test(stationLogoSource) ? "disk" : "online"}" title="Źródło logo: ${this._escape(stationLogoSource || "nieznane")}">${this._config.show_logo_source !== false ? stationLogoSourceLabel : ""}</span></div>` : ""}</div><div class="station-name">${this._escape(station && station !== "unknown" && station !== "unavailable" ? station : "Radio internetowe")}</div>${artworkEnabled && playing ? `${image}<div class="artist">${this._escape(artist || "Nieznany wykonawca")}</div><div class="title">${this._escape(title)}</div>${album ? `<div class="album">${this._escape(album)}</div>` : ""}` : !artworkEnabled ? `${image}` : ""}`}
           ${online ? `<div class="controls">
             <button class="skip" id="previous" aria-label="Poprzednia stacja">
               <ha-icon icon="mdi:skip-previous"></ha-icon>
@@ -1949,8 +1950,8 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
       </style>
 
       <div class="box">
-        <div class="badge">AtlasCube Radio Card · v0.5.0</div>
-        <h2>AtlasCube Radio Card v0.5.0</h2>
+        <div class="badge">AtlasCube Radio Card · TEST · v0.5.2</div>
+        <h2>AtlasCube Radio Card — WERSJA TESTOWA 0.5.2</h2>
         <p>Karta wykrywa AtlasCube i korzysta z natywnej dostępności MQTT przez stany jego encji.</p>
 
         <button class="auto" id="auto">🔎 Automatycznie wykryj AtlasCube</button>
@@ -2040,7 +2041,7 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
 customElements.define("atlascube-radio-card-editor", AtlasCubeRadioCardEditor);
 
 
-customElements.define("atlascube-radio-card", AtlasCubeRadioCard);
+customElements.define("atlascube-radio-card", AtlasCubeRadioCard);\ncustomElements.define("atlascube-radio-card-test", class extends AtlasCubeRadioCard {});
 
 window.customCards = window.customCards || [];
 window.customCards.push({
