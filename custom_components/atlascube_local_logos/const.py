@@ -1,10 +1,13 @@
 DOMAIN = "atlascube_local_logos"
-PLATFORMS = []
+PLATFORMS = ["sensor"]
 LOGO_DIR = "atlascube-radio-station-logos"
+COVER_DIR = "atlascube-radio-covers"
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
+MAX_COVER_BYTES = 700 * 1024
 WS_GET = f"{DOMAIN}/get"
 WS_SAVE = f"{DOMAIN}/save"
 WS_LIST = f"{DOMAIN}/list"
 WS_DELETE = f"{DOMAIN}/delete"
 WS_REFRESH = f"{DOMAIN}/refresh"
 WS_SEARCH = f"{DOMAIN}/search"
+WS_ARTWORK_SET = f"{DOMAIN}/artwork_set"
