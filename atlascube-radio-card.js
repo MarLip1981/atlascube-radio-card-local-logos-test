@@ -12,6 +12,7 @@ class AtlasCubeRadioCard extends HTMLElement {
     this._requestId = 0;
     this._artworkSyncPromise = Promise.resolve();
     this._lastArtworkSyncSignature = null;
+    this._artworkSyncInFlight = new Set();
     this._stationLogoRequestId = 0;
     this._stationLogoDiagnostics = [];
     this._stationLogoDiagnosticsRequestId = 0;
@@ -40,7 +41,7 @@ class AtlasCubeRadioCard extends HTMLElement {
   }
 
   static getConfigElement() {
-    return document.createElement("atlascube-radio-card-editor");
+    return document.createElement("atlascube-radio-card-test-editor");
   }
 
   static getStubConfig() {
@@ -61,6 +62,10 @@ class AtlasCubeRadioCard extends HTMLElement {
     if (track !== this._lastTrack) {
       this._lastTrack = track;
       if (this._config.show_artwork !== false) this._loadArtwork();
+    }
+    if (this._config.show_artwork !== false) {
+      const artwork = this._data?.rawTrack === track ? (this._data?.artwork || "") : "";
+      this._syncArtworkToHomeAssistant(track, artwork);
     }
 
     const station = this._getStation();
@@ -356,7 +361,7 @@ class AtlasCubeRadioCard extends HTMLElement {
     }
     try {
       const data = await this._hass.callWS({
-        type: "atlascube_local_logos/search",
+        type: "atlascube_local_logos_test/search",
         provider: "radio_browser",
         path
       });
@@ -507,7 +512,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         if (!this._hass?.callWS) break;
         try {
           const data = await this._hass.callWS({
-            type: "atlascube_local_logos/search",
+            type: "atlascube_local_logos_test/search",
             provider: "commons",
             query
           });
@@ -733,7 +738,7 @@ class AtlasCubeRadioCard extends HTMLElement {
       // Najpierw wspólna biblioteka na dysku serwera HA.
       if (this._hass?.callWS) {
         try {
-          const local = await this._hass.callWS({ type: "atlascube_local_logos/get", station_key: cacheKey });
+          const local = await this._hass.callWS({ type: "atlascube_local_logos_test/get", station_key: cacheKey });
           if (requestId !== this._stationLogoRequestId) return;
           if (local?.logo) {
             const selectionMode = local.selection_mode || "legacy";
@@ -900,7 +905,7 @@ class AtlasCubeRadioCard extends HTMLElement {
       let chosenSource = result?.source || "none";
       if (hasLogo && !result?.fromDiskFallback && this._hass?.callWS) {
         try {
-          const saved = await this._hass.callWS({ type: "atlascube_local_logos/save", station, station_key: cacheKey, url: result.originalLogo || result.logo, selection_mode: "automatic" });
+          const saved = await this._hass.callWS({ type: "atlascube_local_logos_test/save", station, station_key: cacheKey, url: result.originalLogo || result.logo, selection_mode: "automatic" });
           if (requestId !== this._stationLogoRequestId) return;
           if (saved?.logo) {
             chosenLogo = this._logoCacheBust(saved.logo);
@@ -1035,19 +1040,26 @@ class AtlasCubeRadioCard extends HTMLElement {
     if (!this._hass?.callWS) return;
     const safeTrack = String(track || "");
     const safeArtwork = String(artwork || "");
-    const signature = `${safeTrack}\n${safeArtwork}`;
-    if (signature === this._lastArtworkSyncSignature) return;
-    this._lastArtworkSyncSignature = signature;
+    const signature = safeTrack + "\n" + safeArtwork;
+    if (signature === this._lastArtworkSyncSignature || this._artworkSyncInFlight.has(signature)) return;
+    this._artworkSyncInFlight.add(signature);
+    const hass = this._hass;
 
     this._artworkSyncPromise = this._artworkSyncPromise
       .catch(() => {})
-      .then(() => this._hass.callWS({
-        type: "atlascube_local_logos/artwork_set",
+      .then(() => hass.callWS({
+        type: "atlascube_local_logos_test/artwork_set",
         track: safeTrack,
         url: safeArtwork
       }))
+      .then(() => {
+        this._lastArtworkSyncSignature = signature;
+      })
       .catch(error => {
-        console.warn("AtlasCube Local Logos: nie udało się przekazać okładki do Home Assistanta.", error);
+        console.warn("AtlasCube Local Logos TEST: nie udało się przekazać okładki do Home Assistanta; ponowię próbę przy następnej aktualizacji HA.", error);
+      })
+      .finally(() => {
+        this._artworkSyncInFlight.delete(signature);
       });
   }
 
@@ -1456,7 +1468,7 @@ class AtlasCubeRadioCard extends HTMLElement {
             </div>
             <div class="logo-picker-actions"><button id="logo-refresh" type="button" title="Pobierz ponownie logo z tego samego adresu źródłowego">↻ Odśwież zapisane logo</button><button id="logo-auto" type="button">Przywróć wybór automatyczny</button></div>
           </div>
-          ${!online ? `<div class="topbar"><div class="brand"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div><span class="test-badge">WERSJA TESTOWA · 0.5.2</span></div><div class="offline-icon"><ha-icon icon="mdi:wifi-off"></ha-icon></div><div class="offline-title">Radio AtlasCube</div><div class="offline-text">niedostępne w sieci</div>` : `<div class="topbar"><div class="brand ${webUrl ? "web" : ""}" id="brand" title="${webUrl ? "Otwórz panel AtlasCube" : ""}"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div><span class="test-badge">WERSJA TESTOWA · 0.5.2</span>${stationLogoEnabled && stationLogo ? `<div class="station-logo-slot"><img class="station-logo" src="${this._escape(stationLogo)}" data-original-src="${this._escape(this._stationLogo?.originalLogo || stationLogo)}" alt="" aria-hidden="true" onerror="this.getRootNode().host._retryStationLogoImage(this)"><span class="station-logo-origin ${/^disk/i.test(stationLogoSource) ? "disk" : "online"}" title="Źródło logo: ${this._escape(stationLogoSource || "nieznane")}">${this._config.show_logo_source !== false ? stationLogoSourceLabel : ""}</span></div>` : ""}</div><div class="station-name">${this._escape(station && station !== "unknown" && station !== "unavailable" ? station : "Radio internetowe")}</div>${artworkEnabled && playing ? `${image}<div class="artist">${this._escape(artist || "Nieznany wykonawca")}</div><div class="title">${this._escape(title)}</div>${album ? `<div class="album">${this._escape(album)}</div>` : ""}` : !artworkEnabled ? `${image}` : ""}`}
+          ${!online ? `<div class="topbar"><div class="brand"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div><span class="test-badge">WERSJA TESTOWA · 0.5.3</span></div><div class="offline-icon"><ha-icon icon="mdi:wifi-off"></ha-icon></div><div class="offline-title">Radio AtlasCube</div><div class="offline-text">niedostępne w sieci</div>` : `<div class="topbar"><div class="brand ${webUrl ? "web" : ""}" id="brand" title="${webUrl ? "Otwórz panel AtlasCube" : ""}"><span class="brand-icon">◈</span><span>ATLAS <span class="brand-cube">CUBE</span></span></div><span class="test-badge">WERSJA TESTOWA · 0.5.3</span>${stationLogoEnabled && stationLogo ? `<div class="station-logo-slot"><img class="station-logo" src="${this._escape(stationLogo)}" data-original-src="${this._escape(this._stationLogo?.originalLogo || stationLogo)}" alt="" aria-hidden="true" onerror="this.getRootNode().host._retryStationLogoImage(this)"><span class="station-logo-origin ${/^disk/i.test(stationLogoSource) ? "disk" : "online"}" title="Źródło logo: ${this._escape(stationLogoSource || "nieznane")}">${this._config.show_logo_source !== false ? stationLogoSourceLabel : ""}</span></div>` : ""}</div><div class="station-name">${this._escape(station && station !== "unknown" && station !== "unavailable" ? station : "Radio internetowe")}</div>${artworkEnabled && playing ? `${image}<div class="artist">${this._escape(artist || "Nieznany wykonawca")}</div><div class="title">${this._escape(title)}</div>${album ? `<div class="album">${this._escape(album)}</div>` : ""}` : !artworkEnabled ? `${image}` : ""}`}
           ${online ? `<div class="controls">
             <button class="skip" id="previous" aria-label="Poprzednia stacja">
               <ha-icon icon="mdi:skip-previous"></ha-icon>
@@ -1501,7 +1513,7 @@ class AtlasCubeRadioCard extends HTMLElement {
       button.textContent = "Odświeżanie…";
       try {
         const result = await this._hass.callWS({
-          type: "atlascube_local_logos/refresh",
+          type: "atlascube_local_logos_test/refresh",
           station_key: this._stationLogoKey(station)
         });
         if (this._getStation() !== station || !result?.logo) return;
@@ -1529,7 +1541,7 @@ class AtlasCubeRadioCard extends HTMLElement {
       if (!station || !this._hass?.callWS) return;
       const key = this._stationLogoKey(station);
       try {
-        await this._hass.callWS({ type: "atlascube_local_logos/delete", station_key: key });
+        await this._hass.callWS({ type: "atlascube_local_logos_test/delete", station_key: key });
       } catch (error) {
         console.warn("AtlasCube Local Logos: nie udało się usunąć lokalnego logo.", error);
       }
@@ -1568,7 +1580,7 @@ class AtlasCubeRadioCard extends HTMLElement {
           const saveManual = async () => {
             try {
               return await this._hass.callWS({
-                type: "atlascube_local_logos/save",
+                type: "atlascube_local_logos_test/save",
                 station: selected.station,
                 station_key: this._stationLogoKey(selected.station),
                 url: candidate.originalLogo || candidate.logo,
@@ -1579,7 +1591,7 @@ class AtlasCubeRadioCard extends HTMLElement {
               // w kafelku działa przez proxy. Spróbujmy wtedy zapisać działający URL.
               if (displayedLogo && displayedLogo !== (candidate.originalLogo || candidate.logo)) {
                 return await this._hass.callWS({
-                  type: "atlascube_local_logos/save",
+                  type: "atlascube_local_logos_test/save",
                   station: selected.station,
                   station_key: this._stationLogoKey(selected.station),
                   url: displayedLogo,
@@ -1950,8 +1962,8 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
       </style>
 
       <div class="box">
-        <div class="badge">AtlasCube Radio Card · TEST · v0.5.2</div>
-        <h2>AtlasCube Radio Card — WERSJA TESTOWA 0.5.2</h2>
+        <div class="badge">AtlasCube Radio Card · TEST · v0.5.3</div>
+        <h2>AtlasCube Radio Card — WERSJA TESTOWA 0.5.3</h2>
         <p>Karta wykrywa AtlasCube i korzysta z natywnej dostępności MQTT przez stany jego encji.</p>
 
         <button class="auto" id="auto">🔎 Automatycznie wykryj AtlasCube</button>
@@ -2038,17 +2050,19 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
   }
 }
 
-customElements.define("atlascube-radio-card-editor", AtlasCubeRadioCardEditor);
-
-
-customElements.define("atlascube-radio-card", AtlasCubeRadioCard);
-customElements.define("atlascube-radio-card-test", class extends AtlasCubeRadioCard {});
-
+if (!customElements.get("atlascube-radio-card-test-editor")) {
+  customElements.define("atlascube-radio-card-test-editor", AtlasCubeRadioCardEditor);
+}
+if (!customElements.get("atlascube-radio-card-test")) {
+  customElements.define("atlascube-radio-card-test", AtlasCubeRadioCard);
+}
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "atlascube-radio-card-test",
-  name: "AtlasCube Radio Card — TEST 0.5.2",
-  description: "Testowa karta AtlasCube z lokalną biblioteką logo i okładkami",
-  preview: true,
-  documentationURL: "https://github.com/MarLip1981/atlascube-radio-card"
-});
+if (!window.customCards.some(card => card.type === "atlascube-radio-card-test")) {
+  window.customCards.push({
+    type: "atlascube-radio-card-test",
+    name: "AtlasCube Radio Card — TEST 0.5.3",
+    description: "Testowa karta AtlasCube z odizolowaną integracją i lokalną obsługą okładek",
+    preview: true,
+    documentationURL: "https://github.com/MarLip1981/atlascube-radio-card-local-logos-test"
+  });
+}
