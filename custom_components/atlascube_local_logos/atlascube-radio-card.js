@@ -2041,13 +2041,14 @@ class AtlasCubeRadioCardEditor extends HTMLElement {
 customElements.define("atlascube-radio-card-editor", AtlasCubeRadioCardEditor);
 
 
-customElements.define("atlascube-radio-card", AtlasCubeRadioCard);\ncustomElements.define("atlascube-radio-card-test", class extends AtlasCubeRadioCard {});
+customElements.define("atlascube-radio-card", AtlasCubeRadioCard);
+customElements.define("atlascube-radio-card-test", class extends AtlasCubeRadioCard {});
 
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: "atlascube-radio-card",
-  name: "AtlasCube Radio Card v0.5.0",
-  description: "AtlasCube Radio Card z lokalną biblioteką logo",
+  type: "atlascube-radio-card-test",
+  name: "AtlasCube Radio Card — TEST 0.5.2",
+  description: "Testowa karta AtlasCube z lokalną biblioteką logo i okładkami",
   preview: true,
   documentationURL: "https://github.com/MarLip1981/atlascube-radio-card"
 });
