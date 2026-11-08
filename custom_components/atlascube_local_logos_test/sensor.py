@@ -25,7 +25,7 @@ class AtlasCubeArtworkSensor(SensorEntity):
 
     _attr_has_entity_name = False
     _attr_name = "AtlasCube Radio Cover URL TEST"
-    _attr_unique_id = "atlascube_radio_cover_url_test_test"
+    _attr_unique_id = "atlascube_radio_cover_url_test"
     _attr_suggested_object_id = "atlascube_radio_cover_url_test"
     _attr_icon = "mdi:album"
     _attr_should_poll = False
