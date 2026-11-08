@@ -1,0 +1,15 @@
+{
+  "title": "AtlasCube Local Logos TEST",
+  "config": {
+    "step": {
+      "user": {
+        "title": "AtlasCube Local Logos TEST",
+        "description": "Przygotuj lokalną bibliotekę logo stacji radiowych na dysku Home Assistanta.",
+        "data": {}
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Integracja jest już skonfigurowana."
+    }
+  }
+}
