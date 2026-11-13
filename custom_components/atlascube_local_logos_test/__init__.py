@@ -19,10 +19,11 @@ from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.lovelace.const import LOVELACE_DATA
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_state_change_event
 from .const import (
     DOMAIN, LOGO_DIR, COVER_DIR, MAX_IMAGE_BYTES, MAX_COVER_BYTES,
     WS_DELETE, WS_GET, WS_LIST, WS_SAVE, WS_REFRESH, WS_SEARCH, WS_ARTWORK_SET,
-    PLATFORMS,
+    PLATFORMS, TRACK_ENTITY_ID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,8 +31,150 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _CARD_URL = "/atlascube-local-logos-test/atlascube-radio-card.js"
-_CARD_VERSION = "0.5.3"
+_CARD_VERSION = "0.5.4"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
+
+def _normalize_artwork_text(value: str) -> str:
+    import unicodedata
+    value = unicodedata.normalize("NFD", str(value or "").casefold())
+    value = "".join(char for char in value if unicodedata.category(char) != "Mn")
+    return re.sub(r"[^a-z0-9]+", " ", value).strip()
+
+
+def _artwork_score(result: dict, artist: str, title: str) -> int:
+    wanted_artist = _normalize_artwork_text(artist)
+    wanted_title = _normalize_artwork_text(title)
+    result_artist = _normalize_artwork_text(result.get("artistName", ""))
+    result_title = _normalize_artwork_text(result.get("trackName", ""))
+    score = 0
+    if result_artist == wanted_artist:
+        score += 100
+    elif wanted_artist and (result_artist in wanted_artist or wanted_artist in result_artist):
+        score += 40
+    if result_title == wanted_title:
+        score += 100
+    elif wanted_title and (result_title in wanted_title or wanted_title in result_title):
+        score += 40
+    album = _normalize_artwork_text(result.get("collectionName", ""))
+    if album and wanted_title and wanted_title in album:
+        score += 5
+    return score
+
+
+async def _async_set_current_artwork(hass: HomeAssistant, value: str) -> None:
+    state = hass.data.setdefault(DOMAIN, {})
+    state["current_artwork"] = value or "none"
+    sensor = state.get("artwork_sensor")
+    if sensor:
+        sensor.async_write_ha_state()
+
+
+async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> None:
+    """Find and cache the current radio artwork independently of Lovelace."""
+    state = hass.data.setdefault(DOMAIN, {})
+    track = str(track_value or "").strip()
+    state["artwork_request_id"] = int(state.get("artwork_request_id", 0)) + 1
+    request_id = state["artwork_request_id"]
+
+    if not track or track in {"unknown", "unavailable", "none"}:
+        state["artwork_track"] = ""
+        await _async_set_current_artwork(hass, "none")
+        return
+    if track == state.get("artwork_track"):
+        return
+    state["artwork_track"] = track
+
+    match = re.match(r"^(.+?)\s+-\s+(.+)$", track)
+    artist = match.group(1).strip() if match else ""
+    title = match.group(2).strip() if match else track
+    if not title:
+        await _async_set_current_artwork(hass, "none")
+        return
+
+    key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24]
+    cover_folder = state["cover_folder"]
+    target = cover_folder / f"{key}.jpg"
+    relative_url = f"/local/{COVER_DIR}/{target.name}"
+    if target.is_file():
+        target.touch()
+        await _async_set_current_artwork(hass, relative_url)
+        return
+
+    session = async_get_clientsession(hass)
+    try:
+        params = {
+            "term": f"{artist} {title}".strip(), "country": "PL",
+            "media": "music", "entity": "song", "limit": 10,
+        }
+        async with session.get(
+            "https://itunes.apple.com/search", params=params,
+            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.4"},
+            timeout=15,
+        ) as response:
+            if response.status != 200:
+                raise ValueError(f"iTunes zwrócił HTTP {response.status}")
+            data = await response.json(content_type=None)
+
+        if request_id != state.get("artwork_request_id"):
+            return
+        results = data.get("results", []) if isinstance(data, dict) else []
+        best = max(
+            (item for item in results if isinstance(item, dict)),
+            key=lambda item: _artwork_score(item, artist, title),
+            default=None,
+        )
+        artwork_url = best.get("artworkUrl100") if best else None
+        if not artwork_url:
+            _LOGGER.info("Nie znaleziono okładki iTunes dla utworu: %s", track)
+            await _async_set_current_artwork(hass, "none")
+            return
+
+        artwork_url = artwork_url.replace("100x100bb.", "600x600bb.")
+        artwork_url = artwork_url.replace("http://", "https://", 1)
+        current_url = _public_url(artwork_url)
+        body = b""
+        for redirect_count in range(4):
+            current_url = _public_url(current_url)
+            async with session.get(current_url, allow_redirects=False, timeout=15) as response:
+                if response.status in (301, 302, 303, 307, 308):
+                    location = response.headers.get("Location")
+                    if not location or redirect_count == 3:
+                        raise ValueError("Nieprawidłowe przekierowanie okładki iTunes")
+                    current_url = urljoin(current_url, location)
+                    continue
+                if response.status != 200:
+                    raise ValueError(f"Pobieranie okładki zwróciło HTTP {response.status}")
+                content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+                if content_type not in {"image/jpeg", "image/jpg"}:
+                    raise ValueError(f"iTunes zwrócił nieobsługiwany format: {content_type or 'brak typu'}")
+                if response.content_length is not None and response.content_length > MAX_COVER_BYTES:
+                    raise ValueError("Okładka przekracza limit 700 KB")
+                body = await response.content.read(MAX_COVER_BYTES + 1)
+                if not body or len(body) > MAX_COVER_BYTES:
+                    raise ValueError("Pusta okładka lub przekroczony limit 700 KB")
+                break
+        else:
+            raise ValueError("Nie udało się pobrać okładki iTunes")
+
+        if request_id != state.get("artwork_request_id"):
+            return
+        temporary = target.with_suffix(".jpg.tmp")
+        temporary.write_bytes(body)
+        temporary.replace(target)
+        await _async_set_current_artwork(hass, relative_url)
+
+        cached = sorted(
+            (item for item in cover_folder.glob("*.jpg") if item.is_file()),
+            key=lambda item: item.stat().st_mtime, reverse=True,
+        )
+        for old_file in cached[100:]:
+            old_file.unlink(missing_ok=True)
+        _LOGGER.info("Zapisano okładkę dla utworu '%s': %s", track, relative_url)
+    except Exception as err:  # noqa: BLE001
+        if request_id == state.get("artwork_request_id"):
+            _LOGGER.warning("Nie udało się automatycznie pobrać okładki dla '%s': %s", track, err)
+            await _async_set_current_artwork(hass, "none")
+
 
 
 async def _async_register_frontend(hass: HomeAssistant) -> None:
@@ -504,27 +647,45 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Ensure storage and WebSocket commands exist when integration is added."""
+    """Set up local logos and server-side radio artwork lookup."""
     state = hass.data.setdefault(DOMAIN, {})
     if not state.get("websocket_registered"):
         await async_setup(hass, {})
 
     folder = Path(hass.config.path("www", LOGO_DIR))
     folder.mkdir(parents=True, exist_ok=True)
-    state = hass.data.setdefault(DOMAIN, {})
     state["folder"] = folder
     state.setdefault("current_artwork", "none")
     cover_folder = Path(hass.config.path("www", COVER_DIR))
     cover_folder.mkdir(parents=True, exist_ok=True)
     state["cover_folder"] = cover_folder
+
     await _async_register_frontend(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Wyszukiwanie okładek działa w HA, niezależnie od otwartego dashboardu.
+    if state.get("track_listener"):
+        state["track_listener"]()
+    async def _track_changed(event):
+        new_state = event.data.get("new_state")
+        await _async_process_radio_track(hass, new_state.state if new_state else "")
+
+    state["track_listener"] = async_track_state_change_event(
+        hass, [TRACK_ENTITY_ID], _track_changed
+    )
+    current = hass.states.get(TRACK_ENTITY_ID)
+    await _async_process_radio_track(hass, current.state if current else "")
+    _LOGGER.info("Automatyczne wyszukiwanie okładek nasłuchuje encji %s", TRACK_ENTITY_ID)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Keep cached images when the integration is unloaded."""
+    state = hass.data.get(DOMAIN, {})
+    if state.get("track_listener"):
+        state["track_listener"]()
+        state.pop("track_listener", None)
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
-        hass.data.get(DOMAIN, {}).pop("artwork_sensor", None)
+        state.pop("artwork_sensor", None)
     return unloaded
