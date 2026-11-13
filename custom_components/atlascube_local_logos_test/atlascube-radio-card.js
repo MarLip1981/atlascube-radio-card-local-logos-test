@@ -149,6 +149,7 @@ class AtlasCubeRadioCard extends HTMLElement {
       volume: read(r.volume),
       source: read(r.source),
       availability: read(r.availability),
+      artwork: read("sensor.atlascube_radio_cover_url_test"),
       show_artwork: this._config?.show_artwork,
       show_station_logo: this._config?.show_station_logo,
       show_source: this._config?.show_source,
