@@ -22,7 +22,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_state_change_event
 from .const import (
     DOMAIN, LOGO_DIR, COVER_DIR, MAX_IMAGE_BYTES, MAX_COVER_BYTES,
-    WS_DELETE, WS_GET, WS_LIST, WS_SAVE, WS_REFRESH, WS_SEARCH, WS_ARTWORK_SET,
+    WS_DELETE, WS_GET, WS_LIST, WS_SAVE, WS_REFRESH, WS_SEARCH,
     PLATFORMS, TRACK_ENTITY_ID,
 )
 
@@ -73,14 +73,14 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
     """Find and cache the current radio artwork independently of Lovelace."""
     state = hass.data.setdefault(DOMAIN, {})
     track = str(track_value or "").strip()
+    if track and track == state.get("artwork_track"):
+        return
     state["artwork_request_id"] = int(state.get("artwork_request_id", 0)) + 1
     request_id = state["artwork_request_id"]
 
     if not track or track in {"unknown", "unavailable", "none"}:
         state["artwork_track"] = ""
         await _async_set_current_artwork(hass, "none")
-        return
-    if track == state.get("artwork_track"):
         return
     state["artwork_track"] = track
 
@@ -467,88 +467,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             connection.send_error(msg["id"], "logo_refresh_failed", str(err))
 
     @websocket_api.websocket_command({
-        vol.Required("type"): WS_ARTWORK_SET,
-        vol.Required("track"): str,
-        vol.Optional("url", default=""): str,
-    })
-    @websocket_api.async_response
-    async def ws_artwork_set(hass, connection, msg):
-        """Cache the artwork already selected by the Lovelace card."""
-        try:
-            track = str(msg.get("track", "")).strip()
-            url = str(msg.get("url", "")).strip()
-            state = hass.data[DOMAIN]
-            cover_folder = state["cover_folder"]
-            if not track or not url:
-                state["current_artwork"] = "none"
-                sensor = state.get("artwork_sensor")
-                if sensor:
-                    sensor.async_write_ha_state()
-                connection.send_result(msg["id"], {"artwork": "none", "cleared": True})
-                return
-
-            if len(track) > 500:
-                raise ValueError("Nazwa utworu jest zbyt długa")
-            url = _public_url(url)
-            key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24]
-            target = cover_folder / f"{key}.jpg"
-            was_cached = target.is_file()
-            if not was_cached:
-                session = async_get_clientsession(hass)
-                current_url = url
-                body = b""
-                for redirect_count in range(4):
-                    current_url = _public_url(current_url)
-                    async with session.get(current_url, allow_redirects=False, timeout=15) as response:
-                        if response.status in (301, 302, 303, 307, 308):
-                            location = response.headers.get("Location")
-                            if not location or redirect_count == 3:
-                                raise ValueError("Nieprawidłowe przekierowanie okładki")
-                            current_url = urljoin(current_url, location)
-                            continue
-                        if response.status != 200:
-                            raise ValueError(f"Źródło okładki zwróciło HTTP {response.status}")
-                        content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
-                        if content_type not in {"image/jpeg", "image/jpg"}:
-                            raise ValueError("Okładka musi być obrazem JPEG")
-                        if response.content_length is not None and response.content_length > MAX_COVER_BYTES:
-                            raise ValueError("Okładka przekracza limit 700 KB")
-                        body = await response.content.read(MAX_COVER_BYTES + 1)
-                        if not body or len(body) > MAX_COVER_BYTES:
-                            raise ValueError("Pusta okładka lub przekroczony limit 700 KB")
-                        break
-                else:
-                    raise ValueError("Nie udało się pobrać okładki")
-
-                temporary = target.with_suffix(".jpg.tmp")
-                temporary.write_bytes(body)
-                temporary.replace(target)
-
-            target.touch()
-            relative_url = f"/local/{COVER_DIR}/{target.name}"
-            state["current_artwork"] = relative_url
-            sensor = state.get("artwork_sensor")
-            if sensor:
-                sensor.async_write_ha_state()
-
-            cached = sorted(
-                (item for item in cover_folder.glob("*.jpg") if item.is_file()),
-                key=lambda item: item.stat().st_mtime,
-                reverse=True,
-            )
-            for old_file in cached[100:]:
-                old_file.unlink(missing_ok=True)
-
-            connection.send_result(msg["id"], {
-                "artwork": relative_url,
-                "bytes": target.stat().st_size,
-                "cached": was_cached,
-            })
-        except Exception as err:  # noqa: BLE001
-            _LOGGER.warning("Nie udało się zapisać okładki utworu: %s", err)
-            connection.send_error(msg["id"], "artwork_save_failed", str(err))
-
-    @websocket_api.websocket_command({
         vol.Required("type"): WS_SEARCH,
         vol.Required("provider"): vol.In(["radio_browser", "commons"]),
         vol.Optional("path"): str,
@@ -641,7 +559,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     websocket_api.async_register_command(hass, ws_delete)
     websocket_api.async_register_command(hass, ws_refresh)
     websocket_api.async_register_command(hass, ws_search)
-    websocket_api.async_register_command(hass, ws_artwork_set)
     state["websocket_registered"] = True
     return True
 
@@ -674,7 +591,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass, [TRACK_ENTITY_ID], _track_changed
     )
     current = hass.states.get(TRACK_ENTITY_ID)
-    await _async_process_radio_track(hass, current.state if current else "")
+    hass.async_create_task(_async_process_radio_track(hass, current.state if current else ""))
     _LOGGER.info("Automatyczne wyszukiwanie okładek nasłuchuje encji %s", TRACK_ENTITY_ID)
     return True
 
