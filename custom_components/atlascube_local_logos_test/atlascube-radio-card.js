@@ -63,9 +63,10 @@ class AtlasCubeRadioCard extends HTMLElement {
       this._lastTrack = track;
       if (this._config.show_artwork !== false) this._loadArtwork();
     }
-    if (this._config.show_artwork !== false) {
-      const artwork = this._data?.rawTrack === track ? (this._data?.artwork || "") : "";
-      this._syncArtworkToHomeAssistant(track, artwork);
+    if (this._config.show_artwork !== false && this._data?.rawTrack === track) {
+      // Nie wysyłaj pustego URL podczas przejściowego ładowania danych utworu.
+      // Pusta wartość oznacza dla integracji wyczyszczenie aktualnej okładki.
+      this._syncArtworkToHomeAssistant(track, this._data?.artwork || "");
     }
 
     const station = this._getStation();
@@ -947,8 +948,10 @@ class AtlasCubeRadioCard extends HTMLElement {
     const rawTrack = this._getTrack();
     const { artist, title } = this._parseTrack(rawTrack);
     const requestId = ++this._requestId;
-    this._syncArtworkToHomeAssistant(rawTrack, "");
 
+    // Zachowaj poprzednią okładkę podczas pobierania danych nowego utworu.
+    // Nowy adres albo jawne wyczyszczenie wyśle _applyResult() po zakończeniu
+    // wyszukiwania; nie czyść encji na początku asynchronicznego żądania.
     if (!rawTrack || !title) {
       this._applyResult({ rawTrack, artist, title, artwork: null, album: "" });
       return;
