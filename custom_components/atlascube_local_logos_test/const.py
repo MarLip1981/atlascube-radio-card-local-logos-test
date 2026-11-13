@@ -10,6 +10,5 @@ WS_LIST = f"{DOMAIN}/list"
 WS_DELETE = f"{DOMAIN}/delete"
 WS_REFRESH = f"{DOMAIN}/refresh"
 WS_SEARCH = f"{DOMAIN}/search"
-WS_ARTWORK_SET = f"{DOMAIN}/artwork_set"
 
 TRACK_ENTITY_ID = "sensor.atlascube_radio_tytul_utworu"
