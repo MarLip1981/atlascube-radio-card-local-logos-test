@@ -31,7 +31,7 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _CARD_URL = "/atlascube-local-logos-test/atlascube-radio-card.js"
-_CARD_VERSION = "0.5.4"
+_CARD_VERSION = "0.5.5"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 def _normalize_artwork_text(value: str) -> str:
@@ -91,7 +91,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         await _async_set_current_artwork(hass, "none")
         return
 
-    key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24]
+    key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24] + "-200"
     cover_folder = state["cover_folder"]
     target = cover_folder / f"{key}.jpg"
     relative_url = f"/local/{COVER_DIR}/{target.name}"
@@ -108,7 +108,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         }
         async with session.get(
             "https://itunes.apple.com/search", params=params,
-            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.4"},
+            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.5"},
             timeout=15,
         ) as response:
             if response.status != 200:
@@ -129,7 +129,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
             await _async_set_current_artwork(hass, "none")
             return
 
-        artwork_url = artwork_url.replace("100x100bb.", "600x600bb.")
+        artwork_url = artwork_url.replace("100x100bb.", "200x200bb.")
         artwork_url = artwork_url.replace("http://", "https://", 1)
         current_url = _public_url(artwork_url)
         body = b""
