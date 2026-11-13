@@ -1,4 +1,4 @@
-# AtlasCube Radio Card — TEST — WERSJA 0.5.3
+# AtlasCube Radio Card — TEST — WERSJA 0.5.4
 
 Niezależna wersja testowa — kandydat do przyszłej wersji oficjalnej. Nie zmienia głównej karty AtlasCube ani wcześniejszej karty testowej.
 
@@ -8,11 +8,15 @@ Niezależna wersja testowa — kandydat do przyszłej wersji oficjalnej. Nie zmi
 2. Uruchom ponownie Home Assistant.
 3. Dodaj integrację **AtlasCube Local Logos TEST** (jeśli już jest dodana, nie dodawaj jej ponownie).
 4. Odśwież aplikację Home Assistant i otwórz edytor pulpitu.
-5. Wyszukaj kartę **AtlasCube Radio Card — TEST 0.5.3**.
+5. Wyszukaj kartę **AtlasCube Radio Card — TEST 0.5.4**.
 
 **Nie dodawaj ręcznie zasobu w Ustawienia → Pulpity → Zasoby.** Integracja sama udostępnia plik JS i rejestruje go. W trybie Lovelace storage dodaje moduł do zasobów Lovelace; w trybie YAML korzysta z mechanizmu dodatkowego modułu JavaScript Home Assistanta. Rozpoznawanie trybu zasobów używa właściwości `resource_mode`.
 
 Jeśli karta nadal nie pojawia się w selektorze, potrzebny będzie wpis z dziennika HA zawierający `AtlasCube`, `lovelace` lub `resource` — nie należy ręcznie dopisywać zasobu, bo chcemy potwierdzić automatyczny przebieg.
+
+## Automatyczne okładki — wersja 0.5.4
+
+Wyszukiwanie okładek jest wykonywane przez integrację Home Assistant po zmianie encji `sensor.atlascube_radio_tytul_utworu`. Integracja odpytuje iTunes, pobiera wybraną okładkę na lokalny dysk i aktualizuje `sensor.atlascube_radio_cover_url_test`. Dashboard nie musi być otwarty — Jarvis może pobierać lokalny adres bezpośrednio z encji HA. Karta Lovelace wyświetla tę samą lokalną kopię; nie uruchamia już wyszukiwania w przeglądarce.
 
 ## Biblioteka logo
 
@@ -53,6 +57,6 @@ W wersji 0.1.14 zapytania do Radio Browser i Wikimedia Commons są wykonywane pr
 W wersji 0.1.17 usunięto niepotwierdzony serwer `fi1`, a błędy wszystkich sprawdzonych luster Radio Browser są zachowywane w jednym komunikacie diagnostycznym. Po odpowiedzi HTTP 429 Wikimedia Commons integracja respektuje `Retry-After` (lub stosuje 15-minutową przerwę, jeśli nagłówka brak), a karta wykonuje najwyżej dwa zapytania Commons sekwencyjnie zamiast ośmiu równoległych. Obie kopie pliku karty są utrzymywane w synchronizacji.
 
 
-## Izolacja testu 0.5.3
+## Izolacja testu 0.5.4
 
 Ta wersja używa osobnej domeny integracji `atlascube_local_logos_test`, osobnego adresu zasobu JS, osobnego typu karty `atlascube-radio-card-test`, osobnego kanału WebSocket oraz osobnego sensora `sensor.atlascube_radio_cover_url_test`. Nie nadpisuje integracji ani karty produkcyjnej 0.5.0. Okładki są zapisywane w `/config/www/atlascube-radio-covers-test/` i udostępniane pod `/local/atlascube-radio-covers-test/...`.
