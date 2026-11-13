@@ -1,4 +1,4 @@
-"""Current track artwork exposed to ESPHome."""
+"""Current server-selected track artwork exposed to Home Assistant and ESPHome."""
 from __future__ import annotations
 
 from homeassistant.components.sensor import SensorEntity
@@ -21,7 +21,7 @@ async def async_setup_entry(
 
 
 class AtlasCubeArtworkSensor(SensorEntity):
-    """Expose the local URL of the artwork currently selected by the card."""
+    """Expose the local URL of the artwork found by the integration backend."""
 
     _attr_has_entity_name = False
     _attr_name = "AtlasCube Radio Cover URL TEST"
