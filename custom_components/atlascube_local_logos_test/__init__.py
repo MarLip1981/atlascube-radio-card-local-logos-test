@@ -91,7 +91,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         await _async_set_current_artwork(hass, "none")
         return
 
-    key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24] + "-200"
+    key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24] + "-200-fix"
     cover_folder = state["cover_folder"]
     target = cover_folder / f"{key}.jpg"
     relative_url = f"/local/{COVER_DIR}/{target.name}"
