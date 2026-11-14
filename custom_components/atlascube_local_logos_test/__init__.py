@@ -22,7 +22,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_state_change_event
 from .const import (
-    DOMAIN, LOGO_DIR, COVER_DIR, MAX_IMAGE_BYTES, MAX_COVER_BYTES,
+    DOMAIN, LOGO_DIR, COVER_DIR, COVER_LARGE_DIR, MAX_IMAGE_BYTES, MAX_COVER_BYTES, MAX_COVER_LARGE_BYTES,
     WS_DELETE, WS_GET, WS_LIST, WS_SAVE, WS_REFRESH, WS_SEARCH,
     PLATFORMS, TRACK_ENTITY_ID,
 )
@@ -32,7 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _CARD_URL = "/atlascube-local-logos-test/atlascube-radio-card.js"
-_CARD_VERSION = "0.5.5"
+_CARD_VERSION = "0.5.6"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 def _normalize_artwork_text(value: str) -> str:
@@ -120,7 +120,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         return
     state["artwork_track"] = track
 
-    match = re.match(r"^(.+?)\\s+-\\s+(.+)$", track)
+    match = re.match(r"^(.+?)\s+-\s+(.+)$", track)
     artist = match.group(1).strip() if match else ""
     title = match.group(2).strip() if match else track
     if not title:
