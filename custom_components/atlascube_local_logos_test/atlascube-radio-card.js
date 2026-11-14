@@ -1153,7 +1153,7 @@ class AtlasCubeRadioCard extends HTMLElement {
         .offline-text { font-size:13px; opacity:.65; margin-top:4px; }
 
         .topbar { position:relative; width:100%; min-height:90px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:6px; box-sizing:border-box; padding-top:2px; }
-        .brand { display:flex; align-items:center; justify-content:flex-start; gap:7px; margin:0; font-size:16px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; opacity:.94; flex:0 1 auto; min-width:0; }
+        .brand { position:absolute; top:2px; left:0; z-index:4; display:flex; align-items:center; justify-content:flex-start; gap:7px; margin:0; max-width:38%; font-size:16px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; opacity:.94; flex:0 1 auto; min-width:0; }
         .brand-icon { font-size:22px; line-height:1; }
         .test-badge { position:absolute; left:0; top:34px; z-index:3; padding:3px 7px; border:1px solid rgba(255,190,80,.72); border-radius:6px; background:rgba(88,48,0,.88); color:#ffe0a3; font-size:9px; line-height:1.1; font-weight:900; letter-spacing:.09em; box-shadow:0 1px 5px rgba(0,0,0,.28); pointer-events:none; }
         .brand-cube { opacity:.58; }
@@ -1373,7 +1373,7 @@ class AtlasCubeRadioCard extends HTMLElement {
           </div>` : ""}
 
           ${online && this._config.show_source !== false && sourceOptions.length ? `<div class="source"><ha-icon icon="mdi:radio-tower"></ha-icon><select id="source" aria-label="Źródło">${sourceOptions.map(option => `<option value="${this._escape(option)}" ${option === sourceValue ? "selected" : ""}>${this._escape(option)}</option>`).join("")}</select></div>` : ""}
-          <div class="version-footer">v0.5.0</div>
+          <div class="version-footer">v0.5.7</div>
         </div>
       </div>
     `;
