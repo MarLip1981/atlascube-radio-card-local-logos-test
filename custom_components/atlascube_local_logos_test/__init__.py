@@ -32,7 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _CARD_URL = "/atlascube-local-logos-test/atlascube-radio-card.js"
-_CARD_VERSION = "0.5.7"
+_CARD_VERSION = "0.5.8"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 def _normalize_artwork_text(value: str) -> str:
@@ -149,7 +149,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         }
         async with session.get(
             "https://itunes.apple.com/search", params=params,
-            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.7"},
+            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.8"},
             timeout=15,
         ) as response:
             if response.status != 200:
@@ -513,7 +513,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                     try:
                         async with session.get(
                             "https://" + host + path,
-                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-Test/0.5.7"},
+                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-Test/0.5.8"},
                             timeout=12,
                         ) as response:
                             if response.status != 200:
@@ -550,7 +550,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             async with session.get(
                 "https://commons.wikimedia.org/w/api.php",
                 params=params,
-                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-Test/0.5.7 (https://github.com/MarLip1981/atlascube-radio-card-local-logos-test)"},
+                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-Test/0.5.8 (https://github.com/MarLip1981/atlascube-radio-card-local-logos-test)"},
                 timeout=15,
             ) as response:
                 if response.status == 429:
