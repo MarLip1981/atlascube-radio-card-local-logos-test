@@ -514,7 +514,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                     try:
                         async with session.get(
                             "https://" + host + path,
-                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-Test/0.5.3"},
+                            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-Test/0.5.7"},
                             timeout=12,
                         ) as response:
                             if response.status != 200:
@@ -551,7 +551,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             async with session.get(
                 "https://commons.wikimedia.org/w/api.php",
                 params=params,
-                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-Test/0.5.3 (https://github.com/MarLip1981/atlascube-radio-card-local-logos-test)"},
+                headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-Test/0.5.7 (https://github.com/MarLip1981/atlascube-radio-card-local-logos-test)"},
                 timeout=15,
             ) as response:
                 if response.status == 429:
