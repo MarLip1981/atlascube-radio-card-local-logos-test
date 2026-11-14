@@ -1,5 +1,6 @@
 """Server-side station-logo and track-artwork cache for the AtlasCube card."""
 from __future__ import annotations
+import asyncio
 import hashlib
 import ipaddress
 import json
@@ -61,16 +62,51 @@ def _artwork_score(result: dict, artist: str, title: str) -> int:
     return score
 
 
-async def _async_set_current_artwork(hass: HomeAssistant, value: str) -> None:
+async def _async_set_current_artwork(hass: HomeAssistant, value: str, large_value: str | None = None) -> None:
     state = hass.data.setdefault(DOMAIN, {})
     state["current_artwork"] = value or "none"
-    sensor = state.get("artwork_sensor")
-    if sensor:
-        sensor.async_write_ha_state()
+    state["current_artwork_large"] = large_value or "none"
+    for key in ("artwork_sensor", "artwork_large_sensor"):
+        sensor = state.get(key)
+        if sensor:
+            sensor.async_write_ha_state()
+
+
+async def _async_download_cover(session, url: str, max_bytes: int) -> bytes:
+    """Download a complete JPEG response, following validated redirects."""
+    current_url = _public_url(url)
+    for redirect_count in range(4):
+        current_url = _public_url(current_url)
+        async with session.get(current_url, allow_redirects=False, timeout=20) as response:
+            if response.status in (301, 302, 303, 307, 308):
+                location = response.headers.get("Location")
+                if not location or redirect_count == 3:
+                    raise ValueError("Nieprawidłowe przekierowanie okładki iTunes")
+                current_url = urljoin(current_url, location)
+                continue
+            if response.status != 200:
+                raise ValueError(f"Pobieranie okładki zwróciło HTTP {response.status}")
+            content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+            if content_type not in {"image/jpeg", "image/jpg"}:
+                raise ValueError(f"iTunes zwrócił nieobsługiwany format: {content_type or 'brak typu'}")
+            if response.content_length is not None and response.content_length > max_bytes:
+                raise ValueError(f"Okładka przekracza limit {max_bytes // 1024} KB")
+            chunks = []
+            total_bytes = 0
+            async for chunk in response.content.iter_chunked(64 * 1024):
+                total_bytes += len(chunk)
+                if total_bytes > max_bytes:
+                    raise ValueError(f"Okładka przekracza limit {max_bytes // 1024} KB")
+                chunks.append(chunk)
+            body = b"".join(chunks)
+            if not body:
+                raise ValueError("Pusta okładka z iTunes")
+            return body
+    raise ValueError("Nie udało się pobrać okładki iTunes")
 
 
 async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> None:
-    """Find and cache the current radio artwork independently of Lovelace."""
+    """Cache separate lightweight ESPHome and high-resolution dashboard artwork."""
     state = hass.data.setdefault(DOMAIN, {})
     track = str(track_value or "").strip()
     if track and track == state.get("artwork_track"):
@@ -80,24 +116,30 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
 
     if not track or track in {"unknown", "unavailable", "none"}:
         state["artwork_track"] = ""
-        await _async_set_current_artwork(hass, "none")
+        await _async_set_current_artwork(hass, "none", "none")
         return
     state["artwork_track"] = track
 
-    match = re.match(r"^(.+?)\s+-\s+(.+)$", track)
+    match = re.match(r"^(.+?)\\s+-\\s+(.+)$", track)
     artist = match.group(1).strip() if match else ""
     title = match.group(2).strip() if match else track
     if not title:
-        await _async_set_current_artwork(hass, "none")
+        await _async_set_current_artwork(hass, "none", "none")
         return
 
-    key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24] + "-200-fix"
+    key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24]
     cover_folder = state["cover_folder"]
-    target = cover_folder / f"{key}.jpg"
-    relative_url = f"/local/{COVER_DIR}/{target.name}"
-    if target.is_file():
-        target.touch()
-        await _async_set_current_artwork(hass, relative_url)
+    large_folder = state["cover_large_folder"]
+    small_name = f"{key}-200-fix.jpg"
+    large_name = f"{key}-600.jpg"
+    small_target = cover_folder / small_name
+    large_target = large_folder / large_name
+    small_url = f"/local/{COVER_DIR}/{small_name}"
+    large_url = f"/local/{COVER_LARGE_DIR}/{large_name}"
+    if small_target.is_file() and large_target.is_file():
+        small_target.touch()
+        large_target.touch()
+        await _async_set_current_artwork(hass, small_url, large_url)
         return
 
     session = async_get_clientsession(hass)
@@ -108,7 +150,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         }
         async with session.get(
             "https://itunes.apple.com/search", params=params,
-            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.5"},
+            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.6"},
             timeout=15,
         ) as response:
             if response.status != 200:
@@ -126,62 +168,36 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         artwork_url = best.get("artworkUrl100") if best else None
         if not artwork_url:
             _LOGGER.info("Nie znaleziono okładki iTunes dla utworu: %s", track)
-            await _async_set_current_artwork(hass, "none")
+            await _async_set_current_artwork(hass, "none", "none")
             return
 
-        artwork_url = artwork_url.replace("100x100bb.", "200x200bb.")
-        artwork_url = artwork_url.replace("http://", "https://", 1)
-        current_url = _public_url(artwork_url)
-        body = b""
-        for redirect_count in range(4):
-            current_url = _public_url(current_url)
-            async with session.get(current_url, allow_redirects=False, timeout=15) as response:
-                if response.status in (301, 302, 303, 307, 308):
-                    location = response.headers.get("Location")
-                    if not location or redirect_count == 3:
-                        raise ValueError("Nieprawidłowe przekierowanie okładki iTunes")
-                    current_url = urljoin(current_url, location)
-                    continue
-                if response.status != 200:
-                    raise ValueError(f"Pobieranie okładki zwróciło HTTP {response.status}")
-                content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
-                if content_type not in {"image/jpeg", "image/jpg"}:
-                    raise ValueError(f"iTunes zwrócił nieobsługiwany format: {content_type or 'brak typu'}")
-                if response.content_length is not None and response.content_length > MAX_COVER_BYTES:
-                    raise ValueError("Okładka przekracza limit 700 KB")
-                chunks = []
-                total_bytes = 0
-                async for chunk in response.content.iter_chunked(64 * 1024):
-                    total_bytes += len(chunk)
-                    if total_bytes > MAX_COVER_BYTES:
-                        raise ValueError("Okładka przekracza limit 700 KB")
-                    chunks.append(chunk)
-                body = b"".join(chunks)
-                if not body:
-                    raise ValueError("Pusta okładka z iTunes")
-                break
-        else:
-            raise ValueError("Nie udało się pobrać okładki iTunes")
-
+        base_url = artwork_url.replace("http://", "https://", 1)
+        small_source = base_url.replace("100x100bb.", "200x200bb.")
+        large_source = base_url.replace("100x100bb.", "600x600bb.")
+        small_body, large_body = await asyncio.gather(
+            _async_download_cover(session, small_source, MAX_COVER_BYTES),
+            _async_download_cover(session, large_source, MAX_COVER_LARGE_BYTES),
+        )
         if request_id != state.get("artwork_request_id"):
             return
-        temporary = target.with_suffix(".jpg.tmp")
-        temporary.write_bytes(body)
-        temporary.replace(target)
-        await _async_set_current_artwork(hass, relative_url)
+        for target, body in ((small_target, small_body), (large_target, large_body)):
+            temporary = target.with_suffix(".jpg.tmp")
+            temporary.write_bytes(body)
+            temporary.replace(target)
+        await _async_set_current_artwork(hass, small_url, large_url)
 
-        cached = sorted(
-            (item for item in cover_folder.glob("*.jpg") if item.is_file()),
-            key=lambda item: item.stat().st_mtime, reverse=True,
-        )
-        for old_file in cached[100:]:
-            old_file.unlink(missing_ok=True)
-        _LOGGER.info("Zapisano okładkę dla utworu '%s': %s", track, relative_url)
+        for folder in (cover_folder, large_folder):
+            cached = sorted(
+                (item for item in folder.glob("*.jpg") if item.is_file()),
+                key=lambda item: item.stat().st_mtime, reverse=True,
+            )
+            for old_file in cached[100:]:
+                old_file.unlink(missing_ok=True)
+        _LOGGER.info("Zapisano okładki 200px i 600px dla utworu '%s'.", track)
     except Exception as err:  # noqa: BLE001
         if request_id == state.get("artwork_request_id"):
-            _LOGGER.warning("Nie udało się automatycznie pobrać okładki dla '%s': %s", track, err)
-            await _async_set_current_artwork(hass, "none")
-
+            _LOGGER.warning("Nie udało się pobrać okładek dla '%s': %s", track, err)
+            await _async_set_current_artwork(hass, "none", "none")
 
 
 async def _async_register_frontend(hass: HomeAssistant) -> None:
@@ -583,6 +599,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     cover_folder = Path(hass.config.path("www", COVER_DIR))
     cover_folder.mkdir(parents=True, exist_ok=True)
     state["cover_folder"] = cover_folder
+    cover_large_folder = Path(hass.config.path("www", COVER_LARGE_DIR))
+    cover_large_folder.mkdir(parents=True, exist_ok=True)
+    state["cover_large_folder"] = cover_large_folder
 
     await _async_register_frontend(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
