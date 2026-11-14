@@ -66,10 +66,9 @@ async def _async_set_current_artwork(hass: HomeAssistant, value: str, large_valu
     state = hass.data.setdefault(DOMAIN, {})
     state["current_artwork"] = value or "none"
     state["current_artwork_large"] = large_value or "none"
-    for key in ("artwork_sensor", "artwork_large_sensor"):
-        sensor = state.get(key)
-        if sensor:
-            sensor.async_write_ha_state()
+    sensor = state.get("artwork_sensor")
+    if sensor:
+        sensor.async_write_ha_state()
 
 
 async def _async_download_cover(session, url: str, max_bytes: int) -> bytes:
@@ -106,7 +105,7 @@ async def _async_download_cover(session, url: str, max_bytes: int) -> bytes:
 
 
 async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> None:
-    """Cache separate lightweight ESPHome and high-resolution dashboard artwork."""
+    """Cache lightweight ESPHome and high-resolution dashboard artwork internally."""
     state = hass.data.setdefault(DOMAIN, {})
     track = str(track_value or "").strip()
     if track and track == state.get("artwork_track"):
