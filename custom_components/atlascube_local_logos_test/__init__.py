@@ -149,9 +149,16 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
                     raise ValueError(f"iTunes zwrócił nieobsługiwany format: {content_type or 'brak typu'}")
                 if response.content_length is not None and response.content_length > MAX_COVER_BYTES:
                     raise ValueError("Okładka przekracza limit 700 KB")
-                body = await response.content.read(MAX_COVER_BYTES + 1)
-                if not body or len(body) > MAX_COVER_BYTES:
-                    raise ValueError("Pusta okładka lub przekroczony limit 700 KB")
+                chunks = []
+                total_bytes = 0
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    total_bytes += len(chunk)
+                    if total_bytes > MAX_COVER_BYTES:
+                        raise ValueError("Okładka przekracza limit 700 KB")
+                    chunks.append(chunk)
+                body = b"".join(chunks)
+                if not body:
+                    raise ValueError("Pusta okładka z iTunes")
                 break
         else:
             raise ValueError("Nie udało się pobrać okładki iTunes")
