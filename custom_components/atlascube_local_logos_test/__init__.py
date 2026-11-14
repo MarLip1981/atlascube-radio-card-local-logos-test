@@ -32,7 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _CARD_URL = "/atlascube-local-logos-test/atlascube-radio-card.js"
-_CARD_VERSION = "0.5.6"
+_CARD_VERSION = "0.5.7"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 def _normalize_artwork_text(value: str) -> str:
@@ -131,7 +131,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
     cover_folder = state["cover_folder"]
     large_folder = state["cover_large_folder"]
     small_name = f"{key}-200-fix.jpg"
-    large_name = f"{key}-600.jpg"
+    large_name = f"{key}-1200.jpg"
     small_target = cover_folder / small_name
     large_target = large_folder / large_name
     small_url = f"/local/{COVER_DIR}/{small_name}"
@@ -150,7 +150,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         }
         async with session.get(
             "https://itunes.apple.com/search", params=params,
-            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.6"},
+            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.7"},
             timeout=15,
         ) as response:
             if response.status != 200:
@@ -173,7 +173,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
 
         base_url = artwork_url.replace("http://", "https://", 1)
         small_source = base_url.replace("100x100bb.", "200x200bb.")
-        large_source = base_url.replace("100x100bb.", "600x600bb.")
+        large_source = base_url.replace("100x100bb.", "1200x1200bb.")
         small_body, large_body = await asyncio.gather(
             _async_download_cover(session, small_source, MAX_COVER_BYTES),
             _async_download_cover(session, large_source, MAX_COVER_LARGE_BYTES),
@@ -193,7 +193,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
             )
             for old_file in cached[100:]:
                 old_file.unlink(missing_ok=True)
-        _LOGGER.info("Zapisano okładki 200px i 600px dla utworu '%s'.", track)
+        _LOGGER.info("Zapisano okładki 200px i 1200px dla utworu '%s'.", track)
     except Exception as err:  # noqa: BLE001
         if request_id == state.get("artwork_request_id"):
             _LOGGER.warning("Nie udało się pobrać okładek dla '%s': %s", track, err)
