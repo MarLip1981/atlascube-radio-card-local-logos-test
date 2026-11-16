@@ -175,7 +175,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         }
         async with session.get(
             "https://itunes.apple.com/search", params=params,
-            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.8"},
+            headers={"Accept": "application/json", "User-Agent": "AtlasCube-Local-Logos-TEST/0.5.9"},
             timeout=15,
         ) as response:
             if response.status != 200:
