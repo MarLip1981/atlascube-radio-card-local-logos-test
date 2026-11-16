@@ -104,6 +104,32 @@ async def _async_download_cover(session, url: str, max_bytes: int) -> bytes:
     raise ValueError("Nie udało się pobrać okładki iTunes")
 
 
+def _normalize_small_cover(body: bytes) -> bytes:
+    """Create a decoder-friendly 200x200 JPEG thumbnail for ESPHome."""
+    from io import BytesIO
+    from PIL import Image, ImageOps
+
+    with Image.open(BytesIO(body)) as source:
+        source.load()
+        image = ImageOps.exif_transpose(source).convert("RGB")
+        image = ImageOps.fit(
+            image,
+            (200, 200),
+            method=Image.Resampling.LANCZOS,
+            centering=(0.5, 0.5),
+        )
+        output = BytesIO()
+        image.save(
+            output,
+            format="JPEG",
+            quality=88,
+            optimize=True,
+            progressive=False,
+            subsampling=0,
+        )
+        return output.getvalue()
+
+
 async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> None:
     """Cache lightweight ESPHome and high-resolution dashboard artwork internally."""
     state = hass.data.setdefault(DOMAIN, {})
@@ -129,7 +155,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
     key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24]
     cover_folder = state["cover_folder"]
     large_folder = state["cover_large_folder"]
-    small_name = f"{key}-200-fix.jpg"
+    small_name = f"{key}-200-square-v1.jpg"
     large_name = f"{key}-1200.jpg"
     small_target = cover_folder / small_name
     large_target = large_folder / large_name
@@ -179,6 +205,11 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         )
         if request_id != state.get("artwork_request_id"):
             return
+
+        # iTunes czasem zwraca obraz o proporcjach innych niż 1:1 mimo
+        # wariantu 200x200. Normalizujemy go w HA, zanim ESP32 go pobierze.
+        small_body = await hass.async_add_executor_job(_normalize_small_cover, small_body)
+
         for target, body in ((small_target, small_body), (large_target, large_body)):
             temporary = target.with_suffix(".jpg.tmp")
             temporary.write_bytes(body)
@@ -192,7 +223,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
             )
             for old_file in cached[100:]:
                 old_file.unlink(missing_ok=True)
-        _LOGGER.info("Zapisano okładki 200px i 1200px dla utworu '%s'.", track)
+        _LOGGER.info("Zapisano kwadratową okładkę 200x200 i oryginalną 1200px dla utworu '%s'.", track)
     except Exception as err:  # noqa: BLE001
         if request_id == state.get("artwork_request_id"):
             _LOGGER.warning("Nie udało się pobrać okładek dla '%s': %s", track, err)
