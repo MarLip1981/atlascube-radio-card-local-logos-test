@@ -105,7 +105,7 @@ async def _async_download_cover(session, url: str, max_bytes: int) -> bytes:
 
 
 def _normalize_small_cover(body: bytes) -> bytes:
-    """Create a decoder-friendly 200x200 JPEG thumbnail for ESPHome."""
+    """Create a decoder-friendly 120x120 JPEG thumbnail for ESPHome."""
     from io import BytesIO
     from PIL import Image, ImageOps
 
@@ -114,7 +114,7 @@ def _normalize_small_cover(body: bytes) -> bytes:
         image = ImageOps.exif_transpose(source).convert("RGB")
         image = ImageOps.fit(
             image,
-            (200, 200),
+            (120, 120),
             method=Image.Resampling.LANCZOS,
             centering=(0.5, 0.5),
         )
@@ -122,10 +122,10 @@ def _normalize_small_cover(body: bytes) -> bytes:
         image.save(
             output,
             format="JPEG",
-            quality=88,
+            quality=85,
             optimize=True,
             progressive=False,
-            subsampling=0,
+            subsampling=2,  # 4:2:0 - lżejszy dekoder i mniejszy plik
         )
         return output.getvalue()
 
@@ -155,7 +155,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
     key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24]
     cover_folder = state["cover_folder"]
     large_folder = state["cover_large_folder"]
-    small_name = f"{key}-200-square-v1.jpg"
+    small_name = f"{key}-120-square-v1.jpg"
     large_name = f"{key}-1200.jpg"
     small_target = cover_folder / small_name
     large_target = large_folder / large_name
@@ -223,7 +223,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
             )
             for old_file in cached[100:]:
                 old_file.unlink(missing_ok=True)
-        _LOGGER.info("Zapisano kwadratową okładkę 200x200 i oryginalną 1200px dla utworu '%s'.", track)
+        _LOGGER.info("Zapisano kwadratową okładkę 120x120 i oryginalną 1200px dla utworu '%s'.", track)
     except Exception as err:  # noqa: BLE001
         if request_id == state.get("artwork_request_id"):
             _LOGGER.warning("Nie udało się pobrać okładek dla '%s': %s", track, err)
