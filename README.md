@@ -1,4 +1,4 @@
-# AtlasCube Radio Card — TEST — WERSJA 0.5.8
+# AtlasCube Radio Card — TEST — WERSJA 0.5.10
 
 Niezależna wersja testowa — kandydat do przyszłej wersji oficjalnej. Nie zmienia głównej karty AtlasCube ani wcześniejszej karty testowej.
 
@@ -17,6 +17,11 @@ Jeśli karta nadal nie pojawia się w selektorze, potrzebny będzie wpis z dzien
 ## Automatyczne okładki — wersja 0.5.8 (JPEG 200×200 dla Jarvisa oraz 1200×1200 dla dashboardu)
 
 Wyszukiwanie okładek jest wykonywane przez integrację Home Assistant po zmianie encji `sensor.atlascube_radio_tytul_utworu`. Integracja odpytuje iTunes, pobiera wybraną okładkę na lokalny dysk i aktualizuje `sensor.atlascube_radio_cover_url_test`. Dashboard nie musi być otwarty — Jarvis może pobierać lokalny adres bezpośrednio z encji HA. Karta Lovelace odczytuje URL dużej okładki z atrybutu `artwork_large` encji `sensor.atlascube_radio_cover_url_test`; nie jest tworzona druga encja sensora. Integracja zapisuje dwa niezależne warianty: 200×200 dla Jarvisa (lekki plik dla ESP32-CYD) oraz najwyższy dostępny wariant iTunes 1200×1200 dla dashboardu. Duża kopia nie jest pomniejszana do wersji Jarvisa. Zmiana klucza cache wymusza utworzenie nowych plików; stare okładki nie są ponownie używane. Karta Lovelace wyświetla lokalną kopię 1200×1200; nie uruchamia już wyszukiwania w przeglądarce.
+
+
+### Fallback logo stacji dla Jarvisa
+
+Jeśli iTunes nie znajdzie okładki aktualnego utworu albo tytuł nie zawiera danych o utworze, integracja używa zapisanej lokalnie grafiki logo aktualnej stacji radiowej. Logo jest konwertowane przez Home Assistant do JPEG 120×120 i zapisywane w katalogu okładek ESP32: `/config/www/atlascube-radio-covers-test/`. Encja `sensor.atlascube_radio_cover_url_test` nadal przekazuje Jarvisowi ten sam lokalny URL, więc ESP32 nie pobiera logo z zewnętrznych źródeł ani nie zmienia sposobu dekodowania. Okładka utworu ma zawsze pierwszeństwo; logo stacji jest tylko fallbackiem. Zmiana stacji aktualizuje logo, jeśli brak okładki utworu.
 
 ## Biblioteka logo
 
