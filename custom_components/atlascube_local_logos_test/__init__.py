@@ -78,11 +78,11 @@ def _station_logo_key(value: str) -> str:
         key = "rmf maxx"
     if "polskie przeboje" in key:
         key = "rmf polskie przeboje"
-    if re.search(r"\\b(jedynka|program 1)\\b", key):
+    if re.search(r"\b(jedynka|program 1)\b", key):
         key = "polskie radio program 1"
-    elif re.search(r"\\b(dwojka|program 2)\\b", key):
+    elif re.search(r"\b(dwojka|program 2)\b", key):
         key = "polskie radio program 2"
-    elif re.search(r"\\b(trojka|program 3)\\b", key):
+    elif re.search(r"\b(trojka|program 3)\b", key):
         key = "polskie radio program 3"
     return re.sub(r"[^a-z0-9]+", "-", key).strip("-")[:100]
 
@@ -103,7 +103,7 @@ async def _async_set_station_logo_fallback(hass: HomeAssistant, station_value: s
         await _async_set_current_artwork(hass, "none", "none")
         return
 
-    source = next((logo_folder / f"{key}{ext" for ext in _EXTENSIONS.values()
+    source = next((logo_folder / f"{key}{ext}" for ext in _EXTENSIONS.values()
                   if (logo_folder / f"{key}{ext}").is_file()), None)
     if source is None:
         _LOGGER.debug("Brak lokalnego logo stacji '%s' (klucz %s) — bez fallbacku obrazu", station, key)
