@@ -24,7 +24,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from .const import (
     DOMAIN, LOGO_DIR, COVER_DIR, COVER_LARGE_DIR, MAX_IMAGE_BYTES, MAX_COVER_BYTES, MAX_COVER_LARGE_BYTES,
     WS_DELETE, WS_GET, WS_LIST, WS_SAVE, WS_REFRESH, WS_SEARCH,
-    PLATFORMS, TRACK_ENTITY_ID, STATION_ENTITY_ID,
+    PLATFORMS, TRACK_ENTITY_ID, STATION_ENTITY_ID, PLAYBACK_ENTITY_ID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -88,8 +88,12 @@ def _station_logo_key(value: str) -> str:
 
 
 async def _async_set_station_logo_fallback(hass: HomeAssistant, station_value: str) -> None:
-    """Use a saved station logo only when no track cover is available."""
+    """Use a saved station logo only when radio is playing and no track cover exists."""
     state = hass.data.setdefault(DOMAIN, {})
+    if not _is_radio_playing(hass):
+        state["artwork_has_track_cover"] = False
+        await _async_set_current_artwork(hass, "none", "none")
+        return
     station = str(station_value or "").strip()
     key = _station_logo_key(station)
     if not key or station.lower() in {"unknown", "unavailable", "none"}:
@@ -189,9 +193,22 @@ def _normalize_small_cover(body: bytes) -> bytes:
         return output.getvalue()
 
 
+
+def _is_radio_playing(hass: HomeAssistant) -> bool:
+    """Return true only when the AtlasCube playback entity reports active playback."""
+    playback = hass.states.get(PLAYBACK_ENTITY_ID)
+    value = str(playback.state if playback else "").strip().casefold()
+    return value in {"playing", "play", "on", "1", "true", "active"}
+
 async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> None:
     """Cache lightweight ESPHome and high-resolution dashboard artwork internally."""
     state = hass.data.setdefault(DOMAIN, {})
+    if not _is_radio_playing(hass):
+        state["artwork_request_id"] = int(state.get("artwork_request_id", 0)) + 1
+        state["artwork_track"] = ""
+        state["artwork_has_track_cover"] = False
+        await _async_set_current_artwork(hass, "none", "none")
+        return
     track = str(track_value or "").strip()
     if track and track == state.get("artwork_track"):
         return
@@ -714,8 +731,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass, [TRACK_ENTITY_ID], _track_changed
     )
 
+    async def _playback_changed(event):
+        if not _is_radio_playing(hass):
+            state["artwork_request_id"] = int(state.get("artwork_request_id", 0)) + 1
+            state["artwork_track"] = ""
+            state["artwork_has_track_cover"] = False
+            await _async_set_current_artwork(hass, "none", "none")
+            return
+        track_state = hass.states.get(TRACK_ENTITY_ID)
+        await _async_process_radio_track(hass, track_state.state if track_state else "")
+
+    if state.get("playback_listener"):
+        state["playback_listener"]()
+    state["playback_listener"] = async_track_state_change_event(
+        hass, [PLAYBACK_ENTITY_ID], _playback_changed
+    )
+
     async def _station_changed(event):
-        if state.get("artwork_has_track_cover"):
+        if not _is_radio_playing(hass) or state.get("artwork_has_track_cover"):
             return
         new_state = event.data.get("new_state")
         await _async_set_station_logo_fallback(hass, new_state.state if new_state else "")
@@ -740,6 +773,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if state.get("station_listener"):
         state["station_listener"]()
         state.pop("station_listener", None)
+    if state.get("playback_listener"):
+        state["playback_listener"]()
+        state.pop("playback_listener", None)
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         state.pop("artwork_sensor", None)
