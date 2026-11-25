@@ -24,7 +24,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from .const import (
     DOMAIN, LOGO_DIR, COVER_DIR, COVER_LARGE_DIR, MAX_IMAGE_BYTES, MAX_COVER_BYTES, MAX_COVER_LARGE_BYTES,
     WS_DELETE, WS_GET, WS_LIST, WS_SAVE, WS_REFRESH, WS_SEARCH,
-    PLATFORMS, TRACK_ENTITY_ID,
+    PLATFORMS, TRACK_ENTITY_ID, STATION_ENTITY_ID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -69,6 +69,65 @@ async def _async_set_current_artwork(hass: HomeAssistant, value: str, large_valu
     sensor = state.get("artwork_sensor")
     if sensor:
         sensor.async_write_ha_state()
+
+
+def _station_logo_key(value: str) -> str:
+    """Match the card's station-logo key normalization for saved logo files."""
+    key = _normalize_artwork_text(value)
+    if key == "rmf maxxx":
+        key = "rmf maxx"
+    if "polskie przeboje" in key:
+        key = "rmf polskie przeboje"
+    if re.search(r"\\b(jedynka|program 1)\\b", key):
+        key = "polskie radio program 1"
+    elif re.search(r"\\b(dwojka|program 2)\\b", key):
+        key = "polskie radio program 2"
+    elif re.search(r"\\b(trojka|program 3)\\b", key):
+        key = "polskie radio program 3"
+    return re.sub(r"[^a-z0-9]+", "-", key).strip("-")[:100]
+
+
+async def _async_set_station_logo_fallback(hass: HomeAssistant, station_value: str) -> None:
+    """Use a saved station logo only when no track cover is available."""
+    state = hass.data.setdefault(DOMAIN, {})
+    station = str(station_value or "").strip()
+    key = _station_logo_key(station)
+    if not key or station.lower() in {"unknown", "unavailable", "none"}:
+        state["artwork_has_track_cover"] = False
+        await _async_set_current_artwork(hass, "none", "none")
+        return
+
+    logo_folder = state.get("folder")
+    cover_folder = state.get("cover_folder")
+    if not logo_folder or not cover_folder:
+        await _async_set_current_artwork(hass, "none", "none")
+        return
+
+    source = next((logo_folder / f"{key}{ext" for ext in _EXTENSIONS.values()
+                  if (logo_folder / f"{key}{ext}").is_file()), None)
+    if source is None:
+        _LOGGER.debug("Brak lokalnego logo stacji '%s' (klucz %s) — bez fallbacku obrazu", station, key)
+        state["artwork_has_track_cover"] = False
+        await _async_set_current_artwork(hass, "none", "none")
+        return
+
+    target = cover_folder / f"station-{key}-120-square-v1.jpg"
+    try:
+        if not target.is_file() or target.stat().st_mtime < source.stat().st_mtime:
+            body = await hass.async_add_executor_job(lambda: _normalize_small_cover(source.read_bytes()))
+            temporary = target.with_suffix(".jpg.tmp")
+            temporary.write_bytes(body)
+            temporary.replace(target)
+        target.touch()
+        url = f"/local/{COVER_DIR}/{target.name}"
+        state["artwork_has_track_cover"] = False
+        state["artwork_station"] = station
+        await _async_set_current_artwork(hass, url, "none")
+        _LOGGER.info("Brak okładki utworu; używam lokalnego logo stacji '%s' dla Jarvisa", station)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning("Nie udało się przygotować logo stacji '%s' dla Jarvisa: %s", station, err)
+        state["artwork_has_track_cover"] = False
+        await _async_set_current_artwork(hass, "none", "none")
 
 
 async def _async_download_cover(session, url: str, max_bytes: int) -> bytes:
@@ -141,15 +200,19 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
 
     if not track or track in {"unknown", "unavailable", "none"}:
         state["artwork_track"] = ""
-        await _async_set_current_artwork(hass, "none", "none")
+        state["artwork_has_track_cover"] = False
+        station_state = hass.states.get(STATION_ENTITY_ID)
+        await _async_set_station_logo_fallback(hass, station_state.state if station_state else "")
         return
     state["artwork_track"] = track
+    state["artwork_has_track_cover"] = False
 
     match = re.match(r"^(.+?)\s+-\s+(.+)$", track)
     artist = match.group(1).strip() if match else ""
     title = match.group(2).strip() if match else track
     if not title:
-        await _async_set_current_artwork(hass, "none", "none")
+        station_state = hass.states.get(STATION_ENTITY_ID)
+        await _async_set_station_logo_fallback(hass, station_state.state if station_state else "")
         return
 
     key = hashlib.sha256(track.casefold().encode("utf-8")).hexdigest()[:24]
@@ -164,6 +227,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
     if small_target.is_file() and large_target.is_file():
         small_target.touch()
         large_target.touch()
+        state["artwork_has_track_cover"] = True
         await _async_set_current_artwork(hass, small_url, large_url)
         return
 
@@ -193,7 +257,8 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
         artwork_url = best.get("artworkUrl100") if best else None
         if not artwork_url:
             _LOGGER.info("Nie znaleziono okładki iTunes dla utworu: %s", track)
-            await _async_set_current_artwork(hass, "none", "none")
+            station_state = hass.states.get(STATION_ENTITY_ID)
+            await _async_set_station_logo_fallback(hass, station_state.state if station_state else "")
             return
 
         base_url = artwork_url.replace("http://", "https://", 1)
@@ -214,6 +279,7 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
             temporary = target.with_suffix(".jpg.tmp")
             temporary.write_bytes(body)
             temporary.replace(target)
+        state["artwork_has_track_cover"] = True
         await _async_set_current_artwork(hass, small_url, large_url)
 
         for folder in (cover_folder, large_folder):
@@ -227,7 +293,8 @@ async def _async_process_radio_track(hass: HomeAssistant, track_value: str) -> N
     except Exception as err:  # noqa: BLE001
         if request_id == state.get("artwork_request_id"):
             _LOGGER.warning("Nie udało się pobrać okładek dla '%s': %s", track, err)
-            await _async_set_current_artwork(hass, "none", "none")
+            station_state = hass.states.get(STATION_ENTITY_ID)
+            await _async_set_station_logo_fallback(hass, station_state.state if station_state else "")
 
 
 async def _async_register_frontend(hass: HomeAssistant) -> None:
@@ -646,9 +713,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     state["track_listener"] = async_track_state_change_event(
         hass, [TRACK_ENTITY_ID], _track_changed
     )
+
+    async def _station_changed(event):
+        if state.get("artwork_has_track_cover"):
+            return
+        new_state = event.data.get("new_state")
+        await _async_set_station_logo_fallback(hass, new_state.state if new_state else "")
+
+    if state.get("station_listener"):
+        state["station_listener"]()
+    state["station_listener"] = async_track_state_change_event(
+        hass, [STATION_ENTITY_ID], _station_changed
+    )
     current = hass.states.get(TRACK_ENTITY_ID)
     hass.async_create_task(_async_process_radio_track(hass, current.state if current else ""))
-    _LOGGER.info("Automatyczne wyszukiwanie okładek nasłuchuje encji %s", TRACK_ENTITY_ID)
+    _LOGGER.info("Automatyczne wyszukiwanie okładek nasłuchuje %s oraz logo stacji %s", TRACK_ENTITY_ID, STATION_ENTITY_ID)
     return True
 
 
@@ -658,6 +737,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if state.get("track_listener"):
         state["track_listener"]()
         state.pop("track_listener", None)
+    if state.get("station_listener"):
+        state["station_listener"]()
+        state.pop("station_listener", None)
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         state.pop("artwork_sensor", None)
