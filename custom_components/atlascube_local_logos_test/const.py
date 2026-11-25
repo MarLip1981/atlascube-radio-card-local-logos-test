@@ -14,3 +14,4 @@ WS_REFRESH = f"{DOMAIN}/refresh"
 WS_SEARCH = f"{DOMAIN}/search"
 
 TRACK_ENTITY_ID = "sensor.atlascube_radio_tytul_utworu"
+STATION_ENTITY_ID = "sensor.atlascube_radio_stacja_radiowa"
