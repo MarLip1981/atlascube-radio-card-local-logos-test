@@ -32,7 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 _CARD_URL = "/atlascube-local-logos-test/atlascube-radio-card.js"
-_CARD_VERSION = "0.5.9"
+_CARD_VERSION = "0.5.10"
 _RESOURCE_URL = f"{_CARD_URL}?v={_CARD_VERSION}"
 
 def _normalize_artwork_text(value: str) -> str:
